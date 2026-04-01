@@ -225,7 +225,6 @@
     }
 
     .log-table td:last-child {
-      text-align: right;
       font-variant-numeric: tabular-nums;
       color: #9ca3af;
     }
@@ -243,6 +242,51 @@
       font-weight: 600;
       color: #fff;
       font-size: 0.95rem;
+    }
+
+    /* --- Resume button in log --- */
+    .btn-resume {
+      background: none;
+      border: 1px solid #3a3d4a;
+      color: #9ca3af;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-resume:hover {
+      background: #22c55e22;
+      border-color: #22c55e;
+      color: #22c55e;
+    }
+
+    .btn-resume:disabled {
+      opacity: 0.3;
+      cursor: default;
+      background: none;
+      border-color: #3a3d4a;
+      color: #9ca3af;
+    }
+
+    .log-table td.duration-cell {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+
+    .log-table td.duration-cell .duration-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .entry-active td:first-child .task-name-display {
+      color: #22c55e;
     }
 
     /* --- Editable task name in log --- */
@@ -397,7 +441,9 @@
         <h2>Today's Activities</h2>
         <div class="log-actions">
           <button class="btn btn-sm btn-secondary" onclick="clearLog()">Clear</button>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
           <button class="btn btn-sm btn-secondary" onclick="showSummary()">Summarize</button>
+          <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
         </div>
       </div>
       <div id="logContent">
@@ -423,6 +469,7 @@
     let timerInterval = null;
     let timerStart = null;
     let currentTask = null;
+    let resumingIndex = null; // index of entry being resumed, or null for new
     let entries = [];
 
     // --- Timer ---
@@ -444,8 +491,23 @@
       document.getElementById('activeLabel').style.display = '';
       document.getElementById('activeTaskName').textContent = name;
 
+      renderLog(); // refresh to disable resume buttons and highlight active entry
       timerInterval = setInterval(updateDisplay, 1000);
       updateDisplay();
+    }
+
+    function resumeEntry(index) {
+      if (timerStart) return; // already running
+
+      const entry = entries[index];
+      resumingIndex = index;
+
+      const input = document.getElementById('taskInput');
+      const tagInput = document.getElementById('tagInput');
+      input.value = entry.task;
+      tagInput.value = (entry.tags || []).join(', ');
+
+      startTimer();
     }
 
     function stopTimer() {
@@ -459,7 +521,16 @@
       const tags = parseTags(tagInput.value);
 
       const elapsed = Date.now() - timerStart;
-      entries.push({ task: finalName, ms: elapsed, tags: tags });
+
+      if (resumingIndex !== null) {
+        // Add time to existing entry
+        entries[resumingIndex].ms += elapsed;
+        entries[resumingIndex].task = finalName;
+        entries[resumingIndex].tags = tags;
+        resumingIndex = null;
+      } else {
+        entries.push({ task: finalName, ms: elapsed, tags: tags });
+      }
 
       clearInterval(timerInterval);
       timerInterval = null;
@@ -514,15 +585,21 @@
 
       let totalMs = entries.reduce((sum, e) => sum + e.ms, 0);
 
+      const isRunning = timerStart !== null;
+
       let html = '<table class="log-table"><thead><tr><th>Task</th><th>Duration</th></tr></thead><tbody>';
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        html += `<tr>`;
+        const isActive = isRunning && resumingIndex === i;
+        html += `<tr${isActive ? ' class="entry-active"' : ''}>`;
         html += `<td>`;
         html += `<span class="task-name-display" onclick="editEntry(${i})" title="Click to edit">${escapeHTML(entry.task)}</span>`;
         html += renderTags(entry.tags);
         html += `</td>`;
-        html += `<td>${formatTime(entry.ms)}</td>`;
+        html += `<td class="duration-cell"><div class="duration-row">`;
+        html += `<button class="btn-resume" onclick="resumeEntry(${i})"${isRunning ? ' disabled' : ''}>Resume</button>`;
+        html += `<span>${formatTime(entry.ms)}</span>`;
+        html += `</div></td>`;
         html += `</tr>`;
       }
       html += '</tbody></table>';
@@ -661,6 +738,99 @@
       a.download = `time-tracker-${today}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    // --- CSV Import ---
+
+    function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const imported = parseCSV(text);
+        if (imported.length === 0) {
+          alert('No valid entries found in the CSV file.');
+          return;
+        }
+        entries.push(...imported);
+        renderLog();
+      };
+      reader.readAsText(file);
+
+      // Reset so the same file can be re-imported if needed
+      event.target.value = '';
+    }
+
+    function parseCSV(text) {
+      const lines = text.split('\n');
+      const results = [];
+
+      // Skip header row
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const fields = parseCSVLine(line);
+        // Expected: Date, Task, Duration, Tags (optional)
+        if (fields.length < 3) continue;
+
+        const task = fields[1];
+        const ms = parseTime(fields[2]);
+        if (!task || ms <= 0) continue;
+
+        const tags = fields.length >= 4 && fields[3]
+          ? fields[3].split(';').map(t => t.trim()).filter(t => t.length > 0)
+          : [];
+
+        results.push({ task, ms, tags });
+      }
+
+      return results;
+    }
+
+    function parseCSVLine(line) {
+      const fields = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (i + 1 < line.length && line[i + 1] === '"') {
+              current += '"';
+              i++; // skip escaped quote
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            current += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === ',') {
+            fields.push(current);
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+      }
+      fields.push(current);
+      return fields;
+    }
+
+    function parseTime(str) {
+      const parts = str.split(':');
+      if (parts.length !== 3) return 0;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const s = parseInt(parts[2], 10);
+      if (isNaN(h) || isNaN(m) || isNaN(s)) return 0;
+      return ((h * 3600) + (m * 60) + s) * 1000;
     }
 
     // Close modal on overlay click

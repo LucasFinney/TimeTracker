@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Tracker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 28px;
+      color: #fff;
+    }
+
+    /* --- Timer Section --- */
+    .timer-section {
+      background: #1a1d27;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      border: 1px solid #2a2d3a;
+    }
+
+    .timer-display {
+      font-size: 3rem;
+      font-weight: 300;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 20px;
+      letter-spacing: 2px;
+    }
+
+    .task-input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .task-input-row input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #3a3d4a;
+      background: #12141c;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .task-input-row input:focus {
+      border-color: #5b8def;
+    }
+
+    .task-input-row input::placeholder {
+      color: #666;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-start {
+      background: #22c55e;
+      color: #fff;
+    }
+    .btn-start:hover { background: #1fad53; }
+
+    .btn-stop {
+      background: #ef4444;
+      color: #fff;
+    }
+    .btn-stop:hover { background: #dc2626; }
+
+    .btn-secondary {
+      background: #2a2d3a;
+      color: #ccc;
+    }
+    .btn-secondary:hover { background: #353849; }
+
+    .btn-export {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .btn-export:hover { background: #2563eb; }
+
+    .active-task {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .active-task span {
+      color: #5b8def;
+      font-weight: 500;
+    }
+
+    /* --- Activity Log --- */
+    .log-section {
+      background: #1a1d27;
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid #2a2d3a;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .log-header h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .log-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-empty {
+      text-align: center;
+      color: #555;
+      padding: 32px 0;
+      font-size: 0.9rem;
+    }
+
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .log-table th {
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      padding: 0 0 10px 0;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    .log-table th:last-child {
+      text-align: right;
+    }
+
+    .log-table td {
+      padding: 10px 0;
+      border-bottom: 1px solid #1f2230;
+      font-size: 0.9rem;
+    }
+
+    .log-table td:last-child {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #9ca3af;
+    }
+
+    .log-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .total-row {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #2a2d3a;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+      color: #fff;
+      font-size: 0.95rem;
+    }
+
+    /* --- Summary Modal --- */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #1a1d27;
+      border-radius: 12px;
+      padding: 28px;
+      max-width: 520px;
+      width: 100%;
+      border: 1px solid #2a2d3a;
+    }
+
+    .modal h2 {
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .modal .date {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+    }
+
+    .modal .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .modal .summary-table th {
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #666;
+      padding: 0 0 10px 0;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    .modal .summary-table th:last-child { text-align: right; }
+
+    .modal .summary-table td {
+      padding: 10px 0;
+      border-bottom: 1px solid #1f2230;
+      font-size: 0.9rem;
+    }
+
+    .modal .summary-table td:last-child {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #9ca3af;
+    }
+
+    .modal .summary-total {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #2a2d3a;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Time Tracker</h1>
+
+    <!-- Timer -->
+    <div class="timer-section">
+      <div class="timer-display" id="timerDisplay">00:00:00</div>
+      <div class="task-input-row">
+        <input type="text" id="taskInput" placeholder="What are you working on?" />
+        <button class="btn btn-start" id="startBtn" onclick="startTimer()">Start</button>
+        <button class="btn btn-stop" id="stopBtn" onclick="stopTimer()" style="display:none;">Stop</button>
+      </div>
+      <div class="active-task" id="activeLabel" style="display:none;">
+        Tracking: <span id="activeTaskName"></span>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="log-section">
+      <div class="log-header">
+        <h2>Today's Activities</h2>
+        <div class="log-actions">
+          <button class="btn btn-sm btn-secondary" onclick="clearLog()">Clear</button>
+          <button class="btn btn-sm btn-secondary" onclick="showSummary()">Summarize</button>
+        </div>
+      </div>
+      <div id="logContent">
+        <div class="log-empty" id="logEmpty">No activities recorded yet. Start a timer above.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Modal -->
+  <div class="modal-overlay" id="summaryModal">
+    <div class="modal">
+      <h2>Activity Summary</h2>
+      <div class="date" id="summaryDate"></div>
+      <div id="summaryContent"></div>
+      <div class="modal-actions">
+        <button class="btn btn-sm btn-secondary" onclick="closeSummary()">Close</button>
+        <button class="btn btn-sm btn-export" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let timerInterval = null;
+    let timerStart = null;
+    let currentTask = null;
+    let entries = [];
+
+    // --- Timer ---
+
+    function startTimer() {
+      const input = document.getElementById('taskInput');
+      const name = input.value.trim();
+      if (!name) {
+        input.focus();
+        return;
+      }
+
+      currentTask = name;
+      timerStart = Date.now();
+      input.disabled = true;
+
+      document.getElementById('startBtn').style.display = 'none';
+      document.getElementById('stopBtn').style.display = '';
+      document.getElementById('activeLabel').style.display = '';
+      document.getElementById('activeTaskName').textContent = name;
+
+      timerInterval = setInterval(updateDisplay, 1000);
+      updateDisplay();
+    }
+
+    function stopTimer() {
+      if (!timerStart) return;
+
+      const elapsed = Date.now() - timerStart;
+      entries.push({ task: currentTask, ms: elapsed });
+
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerStart = null;
+      currentTask = null;
+
+      document.getElementById('timerDisplay').textContent = '00:00:00';
+      document.getElementById('startBtn').style.display = '';
+      document.getElementById('stopBtn').style.display = 'none';
+      document.getElementById('activeLabel').style.display = 'none';
+
+      const input = document.getElementById('taskInput');
+      input.disabled = false;
+      input.value = '';
+      input.focus();
+
+      renderLog();
+    }
+
+    function updateDisplay() {
+      if (!timerStart) return;
+      const elapsed = Date.now() - timerStart;
+      document.getElementById('timerDisplay').textContent = formatTime(elapsed);
+    }
+
+    // --- Log ---
+
+    function renderLog() {
+      const container = document.getElementById('logContent');
+      const empty = document.getElementById('logEmpty');
+
+      if (entries.length === 0) {
+        container.innerHTML = '<div class="log-empty" id="logEmpty">No activities recorded yet. Start a timer above.</div>';
+        return;
+      }
+
+      let totalMs = entries.reduce((sum, e) => sum + e.ms, 0);
+
+      let html = '<table class="log-table"><thead><tr><th>Task</th><th>Duration</th></tr></thead><tbody>';
+      for (const entry of entries) {
+        html += `<tr><td>${escapeHTML(entry.task)}</td><td>${formatTime(entry.ms)}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      html += `<div class="total-row"><span>Total</span><span>${formatTime(totalMs)}</span></div>`;
+
+      container.innerHTML = html;
+    }
+
+    function clearLog() {
+      if (entries.length === 0) return;
+      if (!confirm('Clear all logged activities?')) return;
+      entries = [];
+      renderLog();
+    }
+
+    // --- Summary ---
+
+    function showSummary() {
+      if (entries.length === 0) return;
+
+      // Aggregate by task name
+      const grouped = {};
+      for (const entry of entries) {
+        grouped[entry.task] = (grouped[entry.task] || 0) + entry.ms;
+      }
+
+      const today = new Date();
+      document.getElementById('summaryDate').textContent = today.toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+      let totalMs = 0;
+      let html = '<table class="summary-table"><thead><tr><th>Task</th><th>Time</th></tr></thead><tbody>';
+      for (const [task, ms] of Object.entries(grouped)) {
+        html += `<tr><td>${escapeHTML(task)}</td><td>${formatTime(ms)}</td></tr>`;
+        totalMs += ms;
+      }
+      html += '</tbody></table>';
+      html += `<div class="summary-total"><span>Total</span><span>${formatTime(totalMs)}</span></div>`;
+
+      document.getElementById('summaryContent').innerHTML = html;
+      document.getElementById('summaryModal').classList.add('active');
+    }
+
+    function closeSummary() {
+      document.getElementById('summaryModal').classList.remove('active');
+    }
+
+    // --- CSV Export ---
+
+    function exportCSV() {
+      const grouped = {};
+      for (const entry of entries) {
+        grouped[entry.task] = (grouped[entry.task] || 0) + entry.ms;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      let csv = 'Date,Task,Duration\n';
+      for (const [task, ms] of Object.entries(grouped)) {
+        const escaped = task.includes(',') || task.includes('"')
+          ? '"' + task.replace(/"/g, '""') + '"'
+          : task;
+        csv += `${today},${escaped},${formatTime(ms)}\n`;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `time-tracker-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Close modal on overlay click
+    document.getElementById('summaryModal').addEventListener('click', function(e) {
+      if (e.target === this) closeSummary();
+    });
+
+    // Start timer on Enter key
+    document.getElementById('taskInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') startTimer();
+    });
+
+    // --- Helpers ---
+
+    function formatTime(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function escapeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

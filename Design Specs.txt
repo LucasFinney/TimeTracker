@@ -1,0 +1,3 @@
+Goal: A simple, easy to use, comprehensive tool for tracking the time I spend working, by task, with the ability to export summary information into CSV format.
+
+Basic Workflow: I open the program, input the task I'm working on, and start a tracker. This should function like a stop-watch, rather than a count-down or alarm. I say I'm starting to work on "Chapter 3-4 video editing", then go and turn off the timer when I'm done. At the end of the day, I can hit a "summarize activities" button and see a breakdown of how much time I spent on each task, with the option to export this information as a basic CSV, including information about the current date, the activities listed, and the time spent on each task.

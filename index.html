@@ -271,6 +271,24 @@
       color: #9ca3af;
     }
 
+    .btn-delete {
+      background: none;
+      border: 1px solid #3a3d4a;
+      color: #9ca3af;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-delete:hover {
+      background: #ef444422;
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
     .log-table td.duration-cell {
       text-align: right;
       font-variant-numeric: tabular-nums;
@@ -468,6 +486,7 @@
   <script>
     let timerInterval = null;
     let timerStart = null;
+    let timerOffset = 0; // previously accumulated ms when resuming
     let currentTask = null;
     let resumingIndex = null; // index of entry being resumed, or null for new
     let entries = [];
@@ -492,6 +511,7 @@
       document.getElementById('activeTaskName').textContent = name;
 
       renderLog(); // refresh to disable resume buttons and highlight active entry
+      saveState();
       timerInterval = setInterval(updateDisplay, 1000);
       updateDisplay();
     }
@@ -501,6 +521,7 @@
 
       const entry = entries[index];
       resumingIndex = index;
+      timerOffset = entry.ms;
 
       const input = document.getElementById('taskInput');
       const tagInput = document.getElementById('tagInput');
@@ -535,6 +556,7 @@
       clearInterval(timerInterval);
       timerInterval = null;
       timerStart = null;
+      timerOffset = 0;
       currentTask = null;
 
       document.getElementById('timerDisplay').textContent = '00:00:00';
@@ -547,6 +569,7 @@
       input.focus();
 
       renderLog();
+      saveState();
     }
 
     // Live-update the "Tracking: ..." label as user edits
@@ -558,7 +581,7 @@
 
     function updateDisplay() {
       if (!timerStart) return;
-      const elapsed = Date.now() - timerStart;
+      const elapsed = Date.now() - timerStart + timerOffset;
       document.getElementById('timerDisplay').textContent = formatTime(elapsed);
     }
 
@@ -598,6 +621,7 @@
         html += `</td>`;
         html += `<td class="duration-cell"><div class="duration-row">`;
         html += `<button class="btn-resume" onclick="resumeEntry(${i})"${isRunning ? ' disabled' : ''}>Resume</button>`;
+        html += `<button class="btn-delete" onclick="deleteEntry(${i})"${isActive ? ' disabled' : ''}>&#x2715;</button>`;
         html += `<span>${formatTime(entry.ms)}</span>`;
         html += `</div></td>`;
         html += `</tr>`;
@@ -636,6 +660,7 @@
         if (newName) entry.task = newName;
         entry.tags = parseTags(tagsInput.value);
         renderLog();
+        saveState();
       }
 
       // Save on Enter in either field, or on blur from the last focused input
@@ -663,11 +688,26 @@
       });
     }
 
+    function deleteEntry(index) {
+      // Don't delete an entry that's currently being timed
+      if (resumingIndex === index && timerStart) return;
+
+      // Adjust resumingIndex if we're deleting before the resumed entry
+      if (resumingIndex !== null && index < resumingIndex) {
+        resumingIndex--;
+      }
+
+      entries.splice(index, 1);
+      renderLog();
+      saveState();
+    }
+
     function clearLog() {
       if (entries.length === 0) return;
       if (!confirm('Clear all logged activities?')) return;
       entries = [];
       renderLog();
+      saveState();
     }
 
     // --- Summary ---
@@ -756,6 +796,7 @@
         }
         entries.push(...imported);
         renderLog();
+        saveState();
       };
       reader.readAsText(file);
 
@@ -867,6 +908,70 @@
       }
       return str;
     }
+
+    // --- Local Storage Persistence ---
+
+    const STORAGE_KEY = 'timetracker_state';
+
+    function saveState() {
+      const state = {
+        entries: entries,
+        timer: timerStart ? {
+          start: timerStart,
+          task: document.getElementById('taskInput').value.trim() || currentTask,
+          tags: document.getElementById('tagInput').value,
+          resumingIndex: resumingIndex,
+          offset: timerOffset
+        } : null
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        // Storage full or unavailable — silently ignore
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+
+        if (state.entries && Array.isArray(state.entries)) {
+          entries = state.entries;
+          renderLog();
+        }
+
+        if (state.timer && state.timer.start) {
+          // Restore a running timer — the start timestamp is in the past,
+          // so the display will immediately show the elapsed time
+          const input = document.getElementById('taskInput');
+          const tagInput = document.getElementById('tagInput');
+
+          input.value = state.timer.task || '';
+          tagInput.value = state.timer.tags || '';
+          resumingIndex = state.timer.resumingIndex;
+          timerOffset = state.timer.offset || 0;
+
+          currentTask = state.timer.task;
+          timerStart = state.timer.start;
+
+          document.getElementById('startBtn').style.display = 'none';
+          document.getElementById('stopBtn').style.display = '';
+          document.getElementById('activeLabel').style.display = '';
+          document.getElementById('activeTaskName').textContent = currentTask;
+
+          renderLog();
+          timerInterval = setInterval(updateDisplay, 1000);
+          updateDisplay();
+        }
+      } catch (e) {
+        // Corrupt data — start fresh
+      }
+    }
+
+    // Initialize from saved state
+    loadState();
   </script>
 </body>
 </html>

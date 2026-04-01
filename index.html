@@ -51,7 +51,7 @@
     .task-input-row {
       display: flex;
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
 
     .task-input-row input {
@@ -72,6 +72,32 @@
 
     .task-input-row input::placeholder {
       color: #666;
+    }
+
+    .tag-input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .tag-input-row input {
+      flex: 1;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid #3a3d4a;
+      background: #12141c;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .tag-input-row input:focus {
+      border-color: #5b8def;
+    }
+
+    .tag-input-row input::placeholder {
+      color: #555;
     }
 
     .btn {
@@ -120,6 +146,23 @@
     .active-task span {
       color: #5b8def;
       font-weight: 500;
+    }
+
+    /* --- Tags --- */
+    .tag {
+      display: inline-block;
+      background: #2a2d3a;
+      color: #9ca3af;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-right: 4px;
+      margin-top: 4px;
+    }
+
+    .tag-list {
+      margin-top: 4px;
+      line-height: 1.8;
     }
 
     /* --- Activity Log --- */
@@ -178,6 +221,7 @@
       padding: 10px 0;
       border-bottom: 1px solid #1f2230;
       font-size: 0.9rem;
+      vertical-align: top;
     }
 
     .log-table td:last-child {
@@ -199,6 +243,40 @@
       font-weight: 600;
       color: #fff;
       font-size: 0.95rem;
+    }
+
+    /* --- Editable task name in log --- */
+    .task-name-display {
+      cursor: pointer;
+      border-bottom: 1px dashed transparent;
+      transition: border-color 0.15s;
+    }
+
+    .task-name-display:hover {
+      border-bottom-color: #5b8def;
+    }
+
+    .task-edit-input {
+      background: #12141c;
+      border: 1px solid #5b8def;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 0.9rem;
+      padding: 2px 6px;
+      width: 100%;
+      outline: none;
+    }
+
+    .tags-edit-input {
+      background: #12141c;
+      border: 1px solid #5b8def;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      width: 100%;
+      outline: none;
+      margin-top: 4px;
     }
 
     /* --- Summary Modal --- */
@@ -224,6 +302,8 @@
       max-width: 520px;
       width: 100%;
       border: 1px solid #2a2d3a;
+      max-height: 80vh;
+      overflow-y: auto;
     }
 
     .modal h2 {
@@ -260,6 +340,7 @@
       padding: 10px 0;
       border-bottom: 1px solid #1f2230;
       font-size: 0.9rem;
+      vertical-align: top;
     }
 
     .modal .summary-table td:last-child {
@@ -301,6 +382,9 @@
         <input type="text" id="taskInput" placeholder="What are you working on?" />
         <button class="btn btn-start" id="startBtn" onclick="startTimer()">Start</button>
         <button class="btn btn-stop" id="stopBtn" onclick="stopTimer()" style="display:none;">Stop</button>
+      </div>
+      <div class="tag-input-row">
+        <input type="text" id="tagInput" placeholder="Tags (optional, comma-separated)" />
       </div>
       <div class="active-task" id="activeLabel" style="display:none;">
         Tracking: <span id="activeTaskName"></span>
@@ -353,8 +437,8 @@
 
       currentTask = name;
       timerStart = Date.now();
-      input.disabled = true;
 
+      // Keep input editable so user can rename while running
       document.getElementById('startBtn').style.display = 'none';
       document.getElementById('stopBtn').style.display = '';
       document.getElementById('activeLabel').style.display = '';
@@ -367,8 +451,15 @@
     function stopTimer() {
       if (!timerStart) return;
 
+      // Read the current input value — user may have edited it while running
+      const input = document.getElementById('taskInput');
+      const finalName = input.value.trim() || currentTask;
+
+      const tagInput = document.getElementById('tagInput');
+      const tags = parseTags(tagInput.value);
+
       const elapsed = Date.now() - timerStart;
-      entries.push({ task: currentTask, ms: elapsed });
+      entries.push({ task: finalName, ms: elapsed, tags: tags });
 
       clearInterval(timerInterval);
       timerInterval = null;
@@ -380,13 +471,19 @@
       document.getElementById('stopBtn').style.display = 'none';
       document.getElementById('activeLabel').style.display = 'none';
 
-      const input = document.getElementById('taskInput');
-      input.disabled = false;
       input.value = '';
+      tagInput.value = '';
       input.focus();
 
       renderLog();
     }
+
+    // Live-update the "Tracking: ..." label as user edits
+    document.getElementById('taskInput').addEventListener('input', function() {
+      if (timerStart) {
+        document.getElementById('activeTaskName').textContent = this.value.trim() || currentTask;
+      }
+    });
 
     function updateDisplay() {
       if (!timerStart) return;
@@ -394,27 +491,99 @@
       document.getElementById('timerDisplay').textContent = formatTime(elapsed);
     }
 
+    // --- Tags ---
+
+    function parseTags(str) {
+      return str.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    }
+
+    function renderTags(tags) {
+      if (!tags || tags.length === 0) return '';
+      return '<div class="tag-list">' + tags.map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('') + '</div>';
+    }
+
     // --- Log ---
 
     function renderLog() {
       const container = document.getElementById('logContent');
-      const empty = document.getElementById('logEmpty');
 
       if (entries.length === 0) {
-        container.innerHTML = '<div class="log-empty" id="logEmpty">No activities recorded yet. Start a timer above.</div>';
+        container.innerHTML = '<div class="log-empty">No activities recorded yet. Start a timer above.</div>';
         return;
       }
 
       let totalMs = entries.reduce((sum, e) => sum + e.ms, 0);
 
       let html = '<table class="log-table"><thead><tr><th>Task</th><th>Duration</th></tr></thead><tbody>';
-      for (const entry of entries) {
-        html += `<tr><td>${escapeHTML(entry.task)}</td><td>${formatTime(entry.ms)}</td></tr>`;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        html += `<tr>`;
+        html += `<td>`;
+        html += `<span class="task-name-display" onclick="editEntry(${i})" title="Click to edit">${escapeHTML(entry.task)}</span>`;
+        html += renderTags(entry.tags);
+        html += `</td>`;
+        html += `<td>${formatTime(entry.ms)}</td>`;
+        html += `</tr>`;
       }
       html += '</tbody></table>';
       html += `<div class="total-row"><span>Total</span><span>${formatTime(totalMs)}</span></div>`;
 
       container.innerHTML = html;
+    }
+
+    function editEntry(index) {
+      const entry = entries[index];
+      const rows = document.querySelectorAll('.log-table tbody tr');
+      const cell = rows[index].querySelector('td');
+
+      // Replace cell content with edit inputs
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'task-edit-input';
+      nameInput.value = entry.task;
+
+      const tagsInput = document.createElement('input');
+      tagsInput.type = 'text';
+      tagsInput.className = 'tags-edit-input';
+      tagsInput.value = (entry.tags || []).join(', ');
+      tagsInput.placeholder = 'Tags (optional, comma-separated)';
+
+      cell.innerHTML = '';
+      cell.appendChild(nameInput);
+      cell.appendChild(tagsInput);
+      nameInput.focus();
+      nameInput.select();
+
+      function save() {
+        const newName = nameInput.value.trim();
+        if (newName) entry.task = newName;
+        entry.tags = parseTags(tagsInput.value);
+        renderLog();
+      }
+
+      // Save on Enter in either field, or on blur from the last focused input
+      nameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') renderLog();
+      });
+
+      tagsInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') renderLog();
+      });
+
+      // Save on blur, but only if focus didn't move to the other input
+      nameInput.addEventListener('blur', function() {
+        setTimeout(() => {
+          if (document.activeElement !== tagsInput) save();
+        }, 100);
+      });
+
+      tagsInput.addEventListener('blur', function() {
+        setTimeout(() => {
+          if (document.activeElement !== nameInput) save();
+        }, 100);
+      });
     }
 
     function clearLog() {
@@ -431,8 +600,13 @@
 
       // Aggregate by task name
       const grouped = {};
+      const tagsByTask = {};
       for (const entry of entries) {
         grouped[entry.task] = (grouped[entry.task] || 0) + entry.ms;
+        if (entry.tags && entry.tags.length > 0) {
+          if (!tagsByTask[entry.task]) tagsByTask[entry.task] = new Set();
+          entry.tags.forEach(t => tagsByTask[entry.task].add(t));
+        }
       }
 
       const today = new Date();
@@ -443,7 +617,8 @@
       let totalMs = 0;
       let html = '<table class="summary-table"><thead><tr><th>Task</th><th>Time</th></tr></thead><tbody>';
       for (const [task, ms] of Object.entries(grouped)) {
-        html += `<tr><td>${escapeHTML(task)}</td><td>${formatTime(ms)}</td></tr>`;
+        const tags = tagsByTask[task] ? Array.from(tagsByTask[task]) : [];
+        html += `<tr><td>${escapeHTML(task)}${renderTags(tags)}</td><td>${formatTime(ms)}</td></tr>`;
         totalMs += ms;
       }
       html += '</tbody></table>';
@@ -461,17 +636,22 @@
 
     function exportCSV() {
       const grouped = {};
+      const tagsByTask = {};
       for (const entry of entries) {
         grouped[entry.task] = (grouped[entry.task] || 0) + entry.ms;
+        if (entry.tags && entry.tags.length > 0) {
+          if (!tagsByTask[entry.task]) tagsByTask[entry.task] = new Set();
+          entry.tags.forEach(t => tagsByTask[entry.task].add(t));
+        }
       }
 
       const today = new Date().toISOString().slice(0, 10);
-      let csv = 'Date,Task,Duration\n';
+      let csv = 'Date,Task,Duration,Tags\n';
       for (const [task, ms] of Object.entries(grouped)) {
-        const escaped = task.includes(',') || task.includes('"')
-          ? '"' + task.replace(/"/g, '""') + '"'
-          : task;
-        csv += `${today},${escaped},${formatTime(ms)}\n`;
+        const escapedTask = csvEscape(task);
+        const tags = tagsByTask[task] ? Array.from(tagsByTask[task]).join('; ') : '';
+        const escapedTags = csvEscape(tags);
+        csv += `${today},${escapedTask},${formatTime(ms)},${escapedTags}\n`;
       }
 
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -490,7 +670,7 @@
 
     // Start timer on Enter key
     document.getElementById('taskInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') startTimer();
+      if (e.key === 'Enter' && !timerStart) startTimer();
     });
 
     // --- Helpers ---
@@ -509,6 +689,13 @@
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    function csvEscape(str) {
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
     }
   </script>
 </body>

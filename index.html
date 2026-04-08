@@ -148,6 +148,18 @@
       font-weight: 500;
     }
 
+    .stopped-at {
+      text-align: center;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+
+    .stopped-at span {
+      color: #ef8b44;
+      font-weight: 500;
+    }
+
     /* --- Tags --- */
     .tag {
       display: inline-block;
@@ -451,6 +463,9 @@
       <div class="active-task" id="activeLabel" style="display:none;">
         Tracking: <span id="activeTaskName"></span>
       </div>
+      <div class="stopped-at" id="stoppedAtLabel" style="display:none;">
+        Stopped at <span id="stoppedAtTime"></span>
+      </div>
     </div>
 
     <!-- Activity Log -->
@@ -508,6 +523,7 @@
       document.getElementById('startBtn').style.display = 'none';
       document.getElementById('stopBtn').style.display = '';
       document.getElementById('activeLabel').style.display = '';
+      document.getElementById('stoppedAtLabel').style.display = 'none';
       document.getElementById('activeTaskName').textContent = name;
 
       renderLog(); // refresh to disable resume buttons and highlight active entry
@@ -563,6 +579,13 @@
       document.getElementById('startBtn').style.display = '';
       document.getElementById('stopBtn').style.display = 'none';
       document.getElementById('activeLabel').style.display = 'none';
+
+      // Show "Stopped at" timestamp
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+      document.getElementById('stoppedAtTime').textContent = `${timeStr}, ${dateStr}`;
+      document.getElementById('stoppedAtLabel').style.display = '';
 
       input.value = '';
       tagInput.value = '';

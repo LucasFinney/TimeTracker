@@ -4,7 +4,7 @@ A simple, single-file web application for logging time spent on freelance work. 
 
 ## Features
 
-- **Stopwatch Timer** — Enter a task name and start a running timer. The display counts up in `HH:MM:SS` format and updates every second. Stop the timer when you're done, and the session is logged automatically.
+- **Stopwatch Timer** — Enter a task name and start a running timer. The display counts up in `HH:MM:SS` format and updates every second. Stop the timer when you're done, and the session is logged automatically. A "Stopped at" timestamp (e.g., "Stopped at 3:12 PM, 4/8/2026") appears after stopping, so you can tell how long ago you paused and manually account for any untracked time.
 - **Editable Task Names** — Task names can be changed while the timer is running (the input field stays editable) or after the fact by clicking any task name in the activity log. The "Tracking: ..." label updates live as you type.
 - **Optional Tags** — Add comma-separated tags (e.g., "Video Editing, General Chemistry") to any task via the tag input field below the task name. Tags display as pills in the log and summary, and are included in CSV export/import. Tags can also be edited inline by clicking a task in the log.
 - **Resume Tasks** — Each entry in the activity log has a "Resume" button. Clicking it restarts the timer for that task, and the timer display picks up from the previously accumulated time (e.g., if a task had 5 minutes logged, the display starts at `00:05:00`). When stopped, the new elapsed time is added to the existing entry rather than creating a new one. This lets you switch between tasks without cluttering the log.
@@ -31,7 +31,7 @@ This is a **zero-dependency, single-file implementation**. Everything — HTML s
 3. Optionally add tags in the field below (e.g., "Video Editing, General Chemistry").
 4. Click **Start** or press **Enter** to begin the stopwatch.
 5. Work on your task. The timer counts up in real time. You can edit the task name while the timer runs.
-6. Click **Stop** when you're done. The session is saved to the activity log.
+6. Click **Stop** when you're done. The session is saved to the activity log and a "Stopped at" timestamp is shown.
 7. To switch tasks: stop the current timer, start a new one. To go back, click **Resume** on the previous entry — time is added to the same entry.
 8. Click any task name in the log to edit it or its tags after the fact.
 9. When you're finished, click **Summarize** to see an aggregated breakdown.

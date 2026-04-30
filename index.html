@@ -353,92 +353,6 @@
       margin-top: 4px;
     }
 
-    /* --- Summary Modal --- */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 100;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-    }
-
-    .modal-overlay.active {
-      display: flex;
-    }
-
-    .modal {
-      background: #1a1d27;
-      border-radius: 12px;
-      padding: 28px;
-      max-width: 520px;
-      width: 100%;
-      border: 1px solid #2a2d3a;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-
-    .modal h2 {
-      font-size: 1.2rem;
-      margin-bottom: 6px;
-      color: #fff;
-    }
-
-    .modal .date {
-      color: #666;
-      font-size: 0.85rem;
-      margin-bottom: 20px;
-    }
-
-    .modal .summary-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-
-    .modal .summary-table th {
-      text-align: left;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #666;
-      padding: 0 0 10px 0;
-      border-bottom: 1px solid #2a2d3a;
-    }
-
-    .modal .summary-table th:last-child { text-align: right; }
-
-    .modal .summary-table td {
-      padding: 10px 0;
-      border-bottom: 1px solid #1f2230;
-      font-size: 0.9rem;
-      vertical-align: top;
-    }
-
-    .modal .summary-table td:last-child {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-      color: #9ca3af;
-    }
-
-    .modal .summary-total {
-      display: flex;
-      justify-content: space-between;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 20px;
-      padding-top: 10px;
-      border-top: 1px solid #2a2d3a;
-    }
-
-    .modal-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-
     .btn-sm {
       padding: 8px 16px;
       font-size: 0.85rem;
@@ -475,25 +389,12 @@
         <div class="log-actions">
           <button class="btn btn-sm btn-secondary" onclick="clearLog()">Clear</button>
           <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
-          <button class="btn btn-sm btn-secondary" onclick="showSummary()">Summarize</button>
+          <button class="btn btn-sm btn-export" onclick="exportCSV()">Export CSV</button>
           <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
         </div>
       </div>
       <div id="logContent">
         <div class="log-empty" id="logEmpty">No activities recorded yet. Start a timer above.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Summary Modal -->
-  <div class="modal-overlay" id="summaryModal">
-    <div class="modal">
-      <h2>Activity Summary</h2>
-      <div class="date" id="summaryDate"></div>
-      <div id="summaryContent"></div>
-      <div class="modal-actions">
-        <button class="btn btn-sm btn-secondary" onclick="closeSummary()">Close</button>
-        <button class="btn btn-sm btn-export" onclick="exportCSV()">Export CSV</button>
       </div>
     </div>
   </div>
@@ -733,45 +634,6 @@
       saveState();
     }
 
-    // --- Summary ---
-
-    function showSummary() {
-      if (entries.length === 0) return;
-
-      // Aggregate by task name
-      const grouped = {};
-      const tagsByTask = {};
-      for (const entry of entries) {
-        grouped[entry.task] = (grouped[entry.task] || 0) + entry.ms;
-        if (entry.tags && entry.tags.length > 0) {
-          if (!tagsByTask[entry.task]) tagsByTask[entry.task] = new Set();
-          entry.tags.forEach(t => tagsByTask[entry.task].add(t));
-        }
-      }
-
-      const today = new Date();
-      document.getElementById('summaryDate').textContent = today.toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      });
-
-      let totalMs = 0;
-      let html = '<table class="summary-table"><thead><tr><th>Task</th><th>Time</th></tr></thead><tbody>';
-      for (const [task, ms] of Object.entries(grouped)) {
-        const tags = tagsByTask[task] ? Array.from(tagsByTask[task]) : [];
-        html += `<tr><td>${escapeHTML(task)}${renderTags(tags)}</td><td>${formatTime(ms)}</td></tr>`;
-        totalMs += ms;
-      }
-      html += '</tbody></table>';
-      html += `<div class="summary-total"><span>Total</span><span>${formatTime(totalMs)}</span></div>`;
-
-      document.getElementById('summaryContent').innerHTML = html;
-      document.getElementById('summaryModal').classList.add('active');
-    }
-
-    function closeSummary() {
-      document.getElementById('summaryModal').classList.remove('active');
-    }
-
     // --- CSV Export ---
 
     function exportCSV() {
@@ -896,11 +758,6 @@
       if (isNaN(h) || isNaN(m) || isNaN(s)) return 0;
       return ((h * 3600) + (m * 60) + s) * 1000;
     }
-
-    // Close modal on overlay click
-    document.getElementById('summaryModal').addEventListener('click', function(e) {
-      if (e.target === this) closeSummary();
-    });
 
     // Start timer on Enter key
     document.getElementById('taskInput').addEventListener('keydown', function(e) {

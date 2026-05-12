@@ -377,7 +377,8 @@
 
     .duration-display:hover { border-bottom-color: #5b8def; }
 
-    .modal input[type="text"] {
+    .modal input[type="text"],
+    .modal input[type="date"] {
       width: 100%;
       background: #12141c;
       border: 1px solid #3a3d4a;
@@ -390,7 +391,13 @@
       margin-top: 6px;
     }
 
-    .modal input[type="text"]:focus { border-color: #5b8def; }
+    .modal input[type="text"]:focus,
+    .modal input[type="date"]:focus { border-color: #5b8def; }
+
+    .modal input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7);
+      cursor: pointer;
+    }
 
     .duration-hint {
       color: #666;
@@ -656,6 +663,7 @@
             <button class="btn-arrow" onclick="changeMonth(1)">&rsaquo;</button>
           </div>
           <div class="panel-actions">
+            <button class="btn btn-sm btn-secondary" onclick="openAddDayModal()">Add day</button>
             <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
             <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
             <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Detailed Log</button>
@@ -688,6 +696,23 @@
         <div class="modal-actions">
           <button class="btn btn-sm btn-secondary" onclick="closeAddEntryModal()">Cancel</button>
           <button class="btn btn-sm btn-confirm" onclick="confirmAddEntry()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========== ADD DAY MODAL =========== -->
+    <div id="addDayModal" class="modal-backdrop hidden" onclick="closeAddDayModalIfBackdrop(event)">
+      <div class="modal">
+        <h2>Add Day</h2>
+        <div class="modal-subtitle" id="addDaySubtitle"></div>
+
+        <label for="addDayDate">Date</label>
+        <input type="date" id="addDayDate" />
+        <div class="duration-hint">The day will be added to the current month's log.</div>
+
+        <div class="modal-actions">
+          <button class="btn btn-sm btn-secondary" onclick="closeAddDayModal()">Cancel</button>
+          <button class="btn btn-sm btn-confirm" onclick="confirmAddDay()">Add</button>
         </div>
       </div>
     </div>
@@ -1373,6 +1398,58 @@
       renderLog();
       saveState();
     }
+
+    // ============ ADD DAY MODAL ============
+    function openAddDayModal() {
+      const [y, m] = monthCursor.split('-').map(Number);
+      const today = getLocalDate();
+      const todayInMonth = today.startsWith(monthCursor);
+      const defaultDate = todayInMonth
+        ? today
+        : `${monthCursor}-01`;
+
+      const input = document.getElementById('addDayDate');
+      input.value = defaultDate;
+      input.min = `${monthCursor}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      input.max = `${monthCursor}-${String(lastDay).padStart(2, '0')}`;
+
+      document.getElementById('addDaySubtitle').textContent = formatMonthLabel(monthCursor);
+      document.getElementById('addDayModal').classList.remove('hidden');
+      setTimeout(() => input.focus(), 50);
+    }
+
+    function closeAddDayModal() {
+      document.getElementById('addDayModal').classList.add('hidden');
+    }
+
+    function closeAddDayModalIfBackdrop(event) {
+      if (event.target.id === 'addDayModal') closeAddDayModal();
+    }
+
+    function confirmAddDay() {
+      const date = document.getElementById('addDayDate').value;
+      if (!date) {
+        alert('Please choose a date.');
+        return;
+      }
+      if (!date.startsWith(monthCursor)) {
+        alert('Please choose a date within the current month.');
+        return;
+      }
+      // If the day already exists in the month log (entries or saved record),
+      // just open it instead of creating a duplicate placeholder.
+      const alreadyListed = entries.some(e => e.date === date) || !!days[date];
+      if (!alreadyListed) {
+        days[date] = { description: '', savedAt: null };
+      }
+      closeAddDayModal();
+      openDay(date);
+    }
+
+    document.getElementById('addDayDate').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') confirmAddDay();
+    });
 
     // ============ SAVE DAY MODAL ============
     function openSaveDayModal() {

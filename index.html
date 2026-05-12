@@ -594,8 +594,6 @@
           <h2 id="dayLogTitle">Today's Activities</h2>
           <div class="panel-actions">
             <button class="btn btn-sm btn-secondary" onclick="clearDay()">Clear day</button>
-            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
-            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
             <button class="btn btn-sm btn-save-day" onclick="openSaveDayModal()">Save day</button>
           </div>
         </div>
@@ -615,6 +613,8 @@
             <button class="btn-arrow" onclick="changeMonth(1)">&rsaquo;</button>
           </div>
           <div class="panel-actions">
+            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
+            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
             <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Detailed Log</button>
           </div>
         </div>

@@ -616,11 +616,15 @@
             <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
             <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
             <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Detailed Log</button>
+            <button class="btn btn-sm btn-export" onclick="exportReport()">Report (PDF)</button>
           </div>
         </div>
         <div id="monthContent"></div>
       </div>
     </div>
+
+    <!-- Hidden iframe for printing the formatted report -->
+    <iframe id="reportFrame" style="position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;"></iframe>
 
     <!-- =========== SAVE DAY MODAL =========== -->
     <div id="saveDayModal" class="modal-backdrop hidden" onclick="closeSaveDayModalIfBackdrop(event)">
@@ -1279,6 +1283,247 @@
       }
       csv += `,Month Total,${(totalMs / 3600000).toFixed(2)},${formatTime(totalMs)},,\n`;
       downloadCSV(csv, `time-tracker-detailed-${monthCursor}.csv`, BOM);
+    }
+
+    function exportReport() {
+      const dates = getDaysInMonth(monthCursor);
+      if (dates.length === 0) {
+        alert('No activities recorded in this month.');
+        return;
+      }
+
+      // Warn if any day has a description but zero tracked time —
+      // usually means logs were lost or the description is a manual note.
+      const orphanDescDays = dates.filter(d =>
+        days[d] && days[d].description && getDayTotalMs(d) === 0
+      );
+      if (orphanDescDays.length > 0) {
+        const list = orphanDescDays.map(formatDateShort).join(', ');
+        const msg = `${orphanDescDays.length} ${orphanDescDays.length === 1 ? 'day has' : 'days have'} a description but no tracked time:\n\n${list}\n\nThis usually means tracked time is missing for those days. Continue with the export anyway?`;
+        if (!confirm(msg)) return;
+      }
+
+      const html = buildReportHTML(dates);
+      const iframe = document.getElementById('reportFrame');
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      // Set the dynamic title — browsers use this as the default print/PDF filename.
+      const [y, m] = monthCursor.split('-').map(Number);
+      const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long' });
+      doc.title = `Time Report - ${monthName} ${y}`;
+
+      const fire = () => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      };
+      // Give the iframe a tick to lay out before printing
+      if (doc.readyState === 'complete') setTimeout(fire, 50);
+      else iframe.onload = () => setTimeout(fire, 50);
+    }
+
+    function buildReportHTML(dates) {
+      const [y, m] = monthCursor.split('-').map(Number);
+      const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long' });
+      const title = `Time Report - ${monthName} ${y}`;
+      const generated = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+      // ----- Monthly summary rows -----
+      let monthTotalMs = 0;
+      const summaryRows = dates.map(date => {
+        const ms = getDayTotalMs(date);
+        monthTotalMs += ms;
+        const desc = (days[date] && days[date].description) || '';
+
+        const tagSet = new Set();
+        for (const e of entries) {
+          if (e.date === date && e.tags) e.tags.forEach(t => tagSet.add(t));
+        }
+        const tags = Array.from(tagSet);
+
+        return { date, ms, desc, tags };
+      });
+
+      const summaryHTML = summaryRows.map(r => {
+        const tagPills = r.tags.length
+          ? `<div class="tags">${r.tags.map(t => `<span class="pill">${escapeHTML(t)}</span>`).join('')}</div>`
+          : '';
+        const descCell = r.desc ? escapeHTML(r.desc) : '<span class="muted">—</span>';
+        return `
+          <tr>
+            <td class="nowrap">${escapeHTML(formatDateShort(r.date))}</td>
+            <td class="num">${(r.ms / 3600000).toFixed(2)}</td>
+            <td>${descCell}${tagPills}</td>
+          </tr>`;
+      }).join('');
+
+      // ----- Detailed log per day -----
+      const detailHTML = dates.map(date => {
+        const dayEntries = entries.filter(e => e.date === date);
+        if (dayEntries.length === 0) {
+          // Day with description but no entries — still show the heading and note.
+          const desc = (days[date] && days[date].description) || '';
+          return `
+            <section class="day-block">
+              <h3>${escapeHTML(formatDateLabel(date))}</h3>
+              ${desc ? `<p class="day-desc">${escapeHTML(desc)}</p>` : ''}
+              <p class="muted">No tracked activities.</p>
+            </section>`;
+        }
+        const grouped = collapseToPerTaskPerDay(dayEntries);
+        let dayTotal = 0;
+        const rows = grouped.map(r => {
+          dayTotal += r.ms;
+          return `
+            <tr>
+              <td>${escapeHTML(r.task)}</td>
+              <td class="num nowrap">${formatTime(r.ms)}</td>
+              <td class="num">${(r.ms / 3600000).toFixed(2)}</td>
+            </tr>`;
+        }).join('');
+        const desc = (days[date] && days[date].description) || '';
+        return `
+          <section class="day-block">
+            <h3>${escapeHTML(formatDateLabel(date))}</h3>
+            ${desc ? `<p class="day-desc">${escapeHTML(desc)}</p>` : ''}
+            <table class="detail-table">
+              <thead>
+                <tr><th>Task</th><th class="num">Duration</th><th class="num">Hours</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+              <tfoot>
+                <tr>
+                  <td class="total-label">Day total</td>
+                  <td class="num nowrap">${formatTime(dayTotal)}</td>
+                  <td class="num">${(dayTotal / 3600000).toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </section>`;
+      }).join('');
+
+      return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${escapeHTML(title)}</title>
+<style>
+  @page { size: Letter portrait; margin: 0.6in; }
+  @page { @bottom-right { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
+
+  html, body { background: #fff; color: #1a1a1a; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.4;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1 { font-size: 22pt; font-weight: 600; margin: 0 0 4pt 0; }
+  h2 {
+    font-size: 14pt; font-weight: 600;
+    margin: 0 0 12pt 0; padding-bottom: 4pt;
+    border-bottom: 1.5pt solid #1a1a1a;
+  }
+  h3 {
+    font-size: 12pt; font-weight: 600;
+    margin: 18pt 0 4pt 0; padding-bottom: 3pt;
+    border-bottom: 0.5pt solid #bbb;
+  }
+
+  .cover-meta { color: #555; font-size: 10pt; margin-bottom: 22pt; }
+  .cover-total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 18pt; padding: 10pt 14pt;
+    background: #f3f4f6; border-radius: 6pt;
+  }
+  .cover-total .label { font-size: 10pt; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
+  .cover-total .value { font-size: 20pt; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 6pt 8pt; vertical-align: top; text-align: left; }
+  th {
+    font-size: 9pt; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: #555; border-bottom: 1pt solid #1a1a1a;
+  }
+  tbody tr { border-bottom: 0.5pt solid #e5e7eb; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .nowrap { white-space: nowrap; }
+  .muted { color: #999; font-style: italic; }
+
+  .summary-table tfoot td {
+    border-top: 1pt solid #1a1a1a; font-weight: 600;
+    padding-top: 8pt; background: #fff;
+  }
+
+  .pill {
+    display: inline-block;
+    background: #eef2ff; color: #3730a3;
+    font-size: 8.5pt; padding: 1pt 7pt;
+    border-radius: 8pt; margin: 2pt 3pt 0 0;
+  }
+  .tags { margin-top: 2pt; }
+
+  /* Detailed-log section */
+  .detail-section { break-before: page; }
+  .day-block { break-inside: avoid; margin-bottom: 6pt; }
+  .day-desc {
+    color: #444; font-style: italic;
+    margin: 0 0 6pt 0;
+  }
+  .detail-table thead th { font-size: 8.5pt; }
+  .detail-table tfoot td {
+    border-top: 0.5pt solid #1a1a1a;
+    font-weight: 600; background: #fff;
+  }
+  .detail-table .total-label { text-align: right; color: #555; }
+
+  @media screen {
+    body { padding: 24pt; max-width: 8.5in; margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+  <section class="cover">
+    <h1>${escapeHTML(title)}</h1>
+    <div class="cover-meta">Generated ${escapeHTML(generated)}</div>
+
+    <div class="cover-total">
+      <span class="label">Month Total</span>
+      <span class="value">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+    </div>
+
+    <h2>Monthly Summary</h2>
+    <table class="summary-table">
+      <thead>
+        <tr><th>Date</th><th class="num">Hours</th><th>Description</th></tr>
+      </thead>
+      <tbody>${summaryHTML}</tbody>
+      <tfoot>
+        <tr>
+          <td>Total</td>
+          <td class="num">${(monthTotalMs / 3600000).toFixed(2)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </section>
+
+  <section class="detail-section">
+    <h2>Detailed Log</h2>
+    ${detailHTML}
+  </section>
+</body>
+</html>`;
     }
 
     function collapseToPerTaskPerDay(entryList) {

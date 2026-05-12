@@ -633,7 +633,11 @@
       <!-- Activity Log -->
       <div class="panel">
         <div class="panel-header">
-          <h2 id="dayLogTitle">Today's Activities</h2>
+          <div class="month-nav">
+            <button class="btn-arrow" onclick="changeDay(-1)" title="Previous day">&lsaquo;</button>
+            <h2 id="dayLogTitle">Today's Activities</h2>
+            <button class="btn-arrow" onclick="changeDay(1)" title="Next day">&rsaquo;</button>
+          </div>
           <div class="panel-actions">
             <button class="btn btn-sm btn-secondary" onclick="openAddEntryModal()">Add entry</button>
             <button class="btn btn-sm btn-secondary" onclick="clearDay()">Clear day</button>
@@ -899,6 +903,15 @@
     function openDay(date) {
       selectedDate = date;
       view = 'day';
+      saveState();
+      renderAll();
+    }
+
+    function changeDay(delta) {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const date = new Date(y, m - 1, d + delta);
+      selectedDate = getLocalDate(date);
+      if (view === 'month') monthCursor = getMonthCursor(selectedDate);
       saveState();
       renderAll();
     }

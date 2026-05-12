@@ -596,6 +596,37 @@
     .btn-confirm:hover { background: #1fad53; }
 
     .hidden { display: none !important; }
+
+    /* --- Mode (simple/full) --- */
+    body.mode-simple .full-only { display: none !important; }
+
+    /* In simple mode the day row has no description column */
+    body.mode-simple .day-row { grid-template-columns: 130px 1fr auto; }
+
+    .mode-toggle {
+      position: fixed;
+      right: 14px;
+      bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: #2a2d3a;
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .mode-toggle:hover { color: #6b7280; background: #1a1d27; }
+    .mode-toggle .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    body.mode-full .mode-toggle { color: #5b8def; }
+    body.mode-simple .mode-toggle-label { display: none; }
   </style>
 </head>
 <body>
@@ -648,7 +679,7 @@
           <div class="panel-actions">
             <button class="btn btn-sm btn-secondary" onclick="openAddEntryModal()">Add entry</button>
             <button class="btn btn-sm btn-secondary" onclick="clearDay()">Clear day</button>
-            <button class="btn btn-sm btn-save-day" onclick="openSaveDayModal()">Save day</button>
+            <button class="btn btn-sm btn-save-day full-only" onclick="openSaveDayModal()">Save day</button>
           </div>
         </div>
         <div id="logContent">
@@ -680,6 +711,11 @@
 
     <!-- Hidden iframe for printing the formatted report -->
     <iframe id="reportFrame" style="position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;"></iframe>
+
+    <!-- Subtle mode toggle -->
+    <div class="mode-toggle" id="modeToggle" onclick="toggleMode()" title="Toggle mode">
+      <span class="dot"></span><span class="mode-toggle-label">full</span>
+    </div>
 
     <!-- =========== ADD ENTRY MODAL =========== -->
     <div id="addEntryModal" class="modal-backdrop hidden" onclick="closeAddEntryModalIfBackdrop(event)">
@@ -754,6 +790,32 @@
     let selectedDate = null;     // which day the day view shows
     let view = 'day';            // 'day' | 'month'
     let monthCursor = null;      // "YYYY-MM"
+    let mode = 'simple';         // 'simple' | 'full' — full restores description feature
+
+    // ============ MODE ============
+    const MODE_STORAGE_KEY = 'timetracker_mode';
+
+    function loadMode() {
+      try {
+        const m = localStorage.getItem(MODE_STORAGE_KEY);
+        mode = m === 'full' ? 'full' : 'simple';
+      } catch (e) {
+        mode = 'simple';
+      }
+      applyMode();
+    }
+
+    function applyMode() {
+      document.body.classList.toggle('mode-simple', mode === 'simple');
+      document.body.classList.toggle('mode-full', mode === 'full');
+    }
+
+    function toggleMode() {
+      mode = mode === 'simple' ? 'full' : 'simple';
+      try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (e) { /* ignore */ }
+      applyMode();
+      renderAll();
+    }
 
     // ============ DATE / ID HELPERS ============
     function getLocalDate(d) {
@@ -1061,9 +1123,11 @@
         const saved = day && day.savedAt;
         const todayClass = date === today ? ' is-today' : '';
         html += `<div class="day-row${todayClass}" onclick="openDay('${date}')">`;
-        html += `<div class="day-row-date">${escapeHTML(formatDateShort(date))}${saved ? '<span class="saved-mark" title="Saved">✓</span>' : ''}</div>`;
+        html += `<div class="day-row-date">${escapeHTML(formatDateShort(date))}${mode === 'full' && saved ? '<span class="saved-mark" title="Saved">✓</span>' : ''}</div>`;
         html += `<div class="day-row-hours">${(ms / 3600000).toFixed(2)} h</div>`;
-        html += `<div class="day-row-desc${desc ? '' : ' empty'}">${desc ? escapeHTML(desc) : 'No description'}</div>`;
+        if (mode === 'full') {
+          html += `<div class="day-row-desc${desc ? '' : ' empty'}">${desc ? escapeHTML(desc) : 'No description'}</div>`;
+        }
         html += `<div class="day-row-arrow">›</div>`;
         html += `</div>`;
       }
@@ -1556,13 +1620,15 @@
 
       // Warn if any day has a description but zero tracked time —
       // usually means logs were lost or the description is a manual note.
-      const orphanDescDays = dates.filter(d =>
-        days[d] && days[d].description && getDayTotalMs(d) === 0
-      );
-      if (orphanDescDays.length > 0) {
-        const list = orphanDescDays.map(formatDateShort).join(', ');
-        const msg = `${orphanDescDays.length} ${orphanDescDays.length === 1 ? 'day has' : 'days have'} a description but no tracked time:\n\n${list}\n\nThis usually means tracked time is missing for those days. Continue with the export anyway?`;
-        if (!confirm(msg)) return;
+      if (mode === 'full') {
+        const orphanDescDays = dates.filter(d =>
+          days[d] && days[d].description && getDayTotalMs(d) === 0
+        );
+        if (orphanDescDays.length > 0) {
+          const list = orphanDescDays.map(formatDateShort).join(', ');
+          const msg = `${orphanDescDays.length} ${orphanDescDays.length === 1 ? 'day has' : 'days have'} a description but no tracked time:\n\n${list}\n\nThis usually means tracked time is missing for those days. Continue with the export anyway?`;
+          if (!confirm(msg)) return;
+        }
       }
 
       const html = buildReportHTML(dates);
@@ -1624,11 +1690,12 @@
       }).join('');
 
       // ----- Detailed log per day -----
+      const showDesc = mode === 'full';
       const detailHTML = dates.map(date => {
         const dayEntries = entries.filter(e => e.date === date);
+        const desc = showDesc ? ((days[date] && days[date].description) || '') : '';
         if (dayEntries.length === 0) {
           // Day with description but no entries — still show the heading and note.
-          const desc = (days[date] && days[date].description) || '';
           return `
             <section class="day-block">
               <h3>${escapeHTML(formatDateLabel(date))}</h3>
@@ -1647,7 +1714,6 @@
               <td class="num">${(r.ms / 3600000).toFixed(2)}</td>
             </tr>`;
         }).join('');
-        const desc = (days[date] && days[date].description) || '';
         return `
           <section class="day-block">
             <h3>${escapeHTML(formatDateLabel(date))}</h3>
@@ -1755,6 +1821,7 @@
 </style>
 </head>
 <body>
+  ${mode === 'full' ? `
   <section class="cover">
     <h1>${escapeHTML(title)}</h1>
     <div class="cover-meta">Generated ${escapeHTML(generated)}</div>
@@ -1784,6 +1851,20 @@
     <h2>Detailed Log</h2>
     ${detailHTML}
   </section>
+  ` : `
+  <section>
+    <h1>${escapeHTML(title)}</h1>
+    <div class="cover-meta">Generated ${escapeHTML(generated)}</div>
+
+    <div class="cover-total">
+      <span class="label">Total Hours</span>
+      <span class="value">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+    </div>
+
+    <h2>Daily Log</h2>
+    ${detailHTML}
+  </section>
+  `}
 </body>
 </html>`;
     }
@@ -2000,6 +2081,7 @@
     }
 
     // ============ INIT ============
+    loadMode();
     loadState();
   </script>
 </body>

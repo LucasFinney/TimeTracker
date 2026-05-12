@@ -356,6 +356,48 @@
       outline: none;
     }
 
+    .duration-edit-input {
+      background: #12141c;
+      border: 1px solid #5b8def;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 0.9rem;
+      padding: 2px 6px;
+      width: 90px;
+      outline: none;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .duration-display {
+      cursor: pointer;
+      border-bottom: 1px dashed transparent;
+      transition: border-color 0.15s;
+    }
+
+    .duration-display:hover { border-bottom-color: #5b8def; }
+
+    .modal input[type="text"] {
+      width: 100%;
+      background: #12141c;
+      border: 1px solid #3a3d4a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      margin-top: 6px;
+    }
+
+    .modal input[type="text"]:focus { border-color: #5b8def; }
+
+    .duration-hint {
+      color: #666;
+      font-size: 0.78rem;
+      margin-top: 4px;
+    }
+
     .tags-edit-input {
       background: #12141c;
       border: 1px solid #5b8def;
@@ -593,6 +635,7 @@
         <div class="panel-header">
           <h2 id="dayLogTitle">Today's Activities</h2>
           <div class="panel-actions">
+            <button class="btn btn-sm btn-secondary" onclick="openAddEntryModal()">Add entry</button>
             <button class="btn btn-sm btn-secondary" onclick="clearDay()">Clear day</button>
             <button class="btn btn-sm btn-save-day" onclick="openSaveDayModal()">Save day</button>
           </div>
@@ -626,6 +669,29 @@
     <!-- Hidden iframe for printing the formatted report -->
     <iframe id="reportFrame" style="position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;"></iframe>
 
+    <!-- =========== ADD ENTRY MODAL =========== -->
+    <div id="addEntryModal" class="modal-backdrop hidden" onclick="closeAddEntryModalIfBackdrop(event)">
+      <div class="modal">
+        <h2>Add Entry</h2>
+        <div class="modal-subtitle" id="addEntrySubtitle"></div>
+
+        <label for="addEntryTask">Task</label>
+        <input type="text" id="addEntryTask" placeholder="What were you working on?" />
+
+        <label for="addEntryDuration">Duration</label>
+        <input type="text" id="addEntryDuration" placeholder="HH:MM:SS or hours (e.g. 1.5)" />
+        <div class="duration-hint">Examples: <code>01:30:00</code>, <code>1:30:00</code>, <code>1.5</code></div>
+
+        <label for="addEntryTags">Tags (optional, comma-separated)</label>
+        <input type="text" id="addEntryTags" placeholder="e.g. editing, review" />
+
+        <div class="modal-actions">
+          <button class="btn btn-sm btn-secondary" onclick="closeAddEntryModal()">Cancel</button>
+          <button class="btn btn-sm btn-confirm" onclick="confirmAddEntry()">Add</button>
+        </div>
+      </div>
+    </div>
+
     <!-- =========== SAVE DAY MODAL =========== -->
     <div id="saveDayModal" class="modal-backdrop hidden" onclick="closeSaveDayModalIfBackdrop(event)">
       <div class="modal">
@@ -639,7 +705,6 @@
 
         <div class="modal-actions">
           <button class="btn btn-sm btn-secondary" onclick="closeSaveDayModal()">Cancel</button>
-          <button class="btn btn-sm btn-export" onclick="exportDayCSVFromModal()">Export day to CSV</button>
           <button class="btn btn-sm btn-confirm" onclick="confirmSaveDay()">Confirm</button>
         </div>
       </div>
@@ -897,7 +962,11 @@
         html += `<td class="duration-cell"><div class="duration-row">`;
         html += `<button class="btn-resume" onclick="resumeEntry('${entry.id}')"${isRunning ? ' disabled' : ''}>Resume</button>`;
         html += `<button class="btn-delete" onclick="deleteEntry('${entry.id}')"${isActive ? ' disabled' : ''}>&#x2715;</button>`;
-        html += `<span>${formatTime(entry.ms)}</span>`;
+        if (isActive) {
+          html += `<span>${formatTime(entry.ms)}</span>`;
+        } else {
+          html += `<span class="duration-display" onclick="editDuration('${entry.id}')" title="Click to edit duration">${formatTime(entry.ms)}</span>`;
+        }
         html += `</div></td>`;
         html += `</tr>`;
       }
@@ -1159,6 +1228,133 @@
       });
     }
 
+    function editDuration(id) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+      if (timerStart && resumingId === id) return;
+
+      const dayEntries = getDayEntries(selectedDate);
+      const idx = dayEntries.findIndex(e => e.id === id);
+      const rows = document.querySelectorAll('.log-table tbody tr');
+      if (idx === -1 || !rows[idx]) return;
+
+      const span = rows[idx].querySelector('.duration-display');
+      if (!span) return;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'duration-edit-input';
+      input.value = formatTime(entry.ms);
+
+      span.replaceWith(input);
+      input.focus();
+      input.select();
+
+      let done = false;
+      function save() {
+        if (done) return;
+        done = true;
+        const ms = parseDurationInput(input.value);
+        if (ms != null && ms > 0) entry.ms = ms;
+        renderLog();
+        saveState();
+      }
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') { done = true; renderLog(); }
+      });
+      input.addEventListener('blur', save);
+    }
+
+    function parseDurationInput(str) {
+      if (str == null) return null;
+      str = String(str).trim();
+      if (!str) return null;
+      if (str.includes(':')) {
+        const parts = str.split(':').map(p => parseInt(p, 10));
+        if (parts.some(isNaN)) return null;
+        let h = 0, m = 0, s = 0;
+        if (parts.length === 3) { [h, m, s] = parts; }
+        else if (parts.length === 2) { [h, m] = parts; }
+        else return null;
+        if (m >= 60 || s >= 60 || h < 0 || m < 0 || s < 0) return null;
+        return ((h * 3600) + (m * 60) + s) * 1000;
+      }
+      const hours = parseFloat(str);
+      if (isNaN(hours) || hours < 0) return null;
+      return Math.round(hours * 3600000);
+    }
+
+    // ============ ADD ENTRY MODAL ============
+    function openAddEntryModal() {
+      document.getElementById('addEntrySubtitle').textContent = formatDateLabel(selectedDate);
+      document.getElementById('addEntryTask').value = '';
+      document.getElementById('addEntryDuration').value = '';
+      document.getElementById('addEntryTags').value = '';
+      document.getElementById('addEntryModal').classList.remove('hidden');
+      setTimeout(() => document.getElementById('addEntryTask').focus(), 50);
+    }
+
+    function closeAddEntryModal() {
+      document.getElementById('addEntryModal').classList.add('hidden');
+    }
+
+    function closeAddEntryModalIfBackdrop(event) {
+      if (event.target.id === 'addEntryModal') closeAddEntryModal();
+    }
+
+    function confirmAddEntry() {
+      const task = document.getElementById('addEntryTask').value.trim();
+      const durationStr = document.getElementById('addEntryDuration').value;
+      const tags = parseTags(document.getElementById('addEntryTags').value);
+
+      if (!task) {
+        alert('Please enter a task name.');
+        document.getElementById('addEntryTask').focus();
+        return;
+      }
+      const ms = parseDurationInput(durationStr);
+      if (ms == null || ms <= 0) {
+        alert('Please enter a valid duration (e.g. 01:30:00 or 1.5).');
+        document.getElementById('addEntryDuration').focus();
+        return;
+      }
+
+      // Merge into an existing same-task entry on this date if one exists,
+      // matching the behavior of the timer.
+      const existing = entries.find(e =>
+        e.date === selectedDate && e.task.toLowerCase() === task.toLowerCase()
+      );
+      if (existing) {
+        existing.ms += ms;
+        existing.task = task;
+        if (tags.length) existing.tags = tags;
+      } else {
+        entries.push({
+          id: generateId(),
+          date: selectedDate,
+          task,
+          ms,
+          tags
+        });
+      }
+
+      closeAddEntryModal();
+      renderLog();
+      saveState();
+    }
+
+    document.getElementById('addEntryDuration').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') confirmAddEntry();
+    });
+    document.getElementById('addEntryTags').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') confirmAddEntry();
+    });
+    document.getElementById('addEntryTask').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('addEntryDuration').focus();
+    });
+
     function deleteEntry(id) {
       if (resumingId === id && timerStart) return;
       const idx = entries.findIndex(e => e.id === id);
@@ -1237,31 +1433,7 @@
       // If month view is what they'll go to next, no harm; otherwise just stay on day view.
     }
 
-    function exportDayCSVFromModal() {
-      exportDayCSV(selectedDate);
-    }
-
     // ============ EXPORTS ============
-    function exportDayCSV(date) {
-      const dayEntries = getDayEntries(date);
-      if (dayEntries.length === 0) {
-        alert('No activities to export for this day.');
-        return;
-      }
-      const grouped = collapseToPerTaskPerDay(dayEntries);
-      const day = days[date];
-      const desc = day && day.description ? day.description : '';
-
-      const BOM = '﻿';
-      let csv = 'Date,Task,Duration (hours),Duration (HH:MM:SS),Tags,Day Description\n';
-      for (const r of grouped) {
-        const hours = (r.ms / 3600000).toFixed(2);
-        const tags = Array.from(r.tags).join('; ');
-        csv += `${r.date},${csvEscape(r.task)},${hours},${formatTime(r.ms)},${csvEscape(tags)},${csvEscape(desc)}\n`;
-      }
-      downloadCSV(csv, `time-tracker-day-${date}.csv`, BOM);
-    }
-
     function exportDetailedLog() {
       const monthEntries = entries.filter(e => e.date.startsWith(monthCursor));
       if (monthEntries.length === 0) {

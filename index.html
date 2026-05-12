@@ -615,7 +615,6 @@
             <button class="btn-arrow" onclick="changeMonth(1)">&rsaquo;</button>
           </div>
           <div class="panel-actions">
-            <button class="btn btn-sm btn-export" onclick="exportMonthlySummary()">Monthly Summary</button>
             <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Detailed Log</button>
           </div>
         </div>
@@ -1269,34 +1268,17 @@
 
       const BOM = '﻿';
       let csv = 'Date,Task,Duration (hours),Duration (HH:MM:SS),Tags,Day Description\n';
+      let totalMs = 0;
       for (const r of grouped) {
         const hours = (r.ms / 3600000).toFixed(2);
         const tags = Array.from(r.tags).join('; ');
         const day = days[r.date];
         const desc = day && day.description ? day.description : '';
         csv += `${r.date},${csvEscape(r.task)},${hours},${formatTime(r.ms)},${csvEscape(tags)},${csvEscape(desc)}\n`;
+        totalMs += r.ms;
       }
+      csv += `,Month Total,${(totalMs / 3600000).toFixed(2)},${formatTime(totalMs)},,\n`;
       downloadCSV(csv, `time-tracker-detailed-${monthCursor}.csv`, BOM);
-    }
-
-    function exportMonthlySummary() {
-      const dates = getDaysInMonth(monthCursor);
-      if (dates.length === 0) {
-        alert('No activities recorded in this month.');
-        return;
-      }
-      const BOM = '﻿';
-      let csv = 'Date,Total Hours,Description\n';
-      let total = 0;
-      for (const date of dates) {
-        const ms = getDayTotalMs(date);
-        if (ms === 0 && !(days[date] && days[date].description)) continue;
-        total += ms;
-        const desc = (days[date] && days[date].description) ? days[date].description : '';
-        csv += `${date},${(ms / 3600000).toFixed(2)},${csvEscape(desc)}\n`;
-      }
-      csv += `,${(total / 3600000).toFixed(2)},Month total\n`;
-      downloadCSV(csv, `time-tracker-summary-${monthCursor}.csv`, BOM);
     }
 
     function collapseToPerTaskPerDay(entryList) {
@@ -1360,10 +1342,12 @@
         durationHours: header.findIndex(h => h.startsWith('duration (hours)')),
         durationHMS: header.findIndex(h => h.startsWith('duration (hh')),
         durationLegacy: col('Duration'),
-        tags: col('Tags')
+        tags: col('Tags'),
+        dayDescription: col('Day Description')
       };
 
       const results = [];
+      const importedDescByDate = {};
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].replace(/\r$/, '');
         if (!line.trim()) continue;
@@ -1386,8 +1370,24 @@
         const tagsStr = get(idx.tags) || '';
         const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
 
+        const dayDesc = (get(idx.dayDescription) || '').trim();
+        if (dayDesc && !importedDescByDate[date]) {
+          importedDescByDate[date] = dayDesc;
+        }
+
         results.push({ id: generateId(), date, task, ms, tags });
       }
+
+      // Only populate day descriptions for dates that don't already have one
+      for (const [date, desc] of Object.entries(importedDescByDate)) {
+        if (!days[date] || !days[date].description) {
+          days[date] = {
+            description: desc,
+            savedAt: days[date] ? days[date].savedAt : null
+          };
+        }
+      }
+
       return results;
     }
 

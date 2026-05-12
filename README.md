@@ -1,42 +1,57 @@
 # TimeTracker
 
-A simple, single-file web application for logging time spent on freelance work. Track tasks with a stopwatch-style timer, review a summary of your day, and export/import the results as CSV.
+A single-file web application for logging time spent on freelance work. Track tasks with a stopwatch-style timer, annotate each day with a description, browse the month at a glance, and export a printable monthly report or a detailed CSV log.
 
 ## Features
 
-- **Stopwatch Timer** — Enter a task name and start a running timer. The display counts up in `HH:MM:SS` format and updates every second. Stop the timer when you're done, and the session is logged automatically. A "Stopped at" timestamp (e.g., "Stopped at 3:12 PM, 4/8/2026") appears after stopping, so you can tell how long ago you paused and manually account for any untracked time.
-- **Editable Task Names** — Task names can be changed while the timer is running (the input field stays editable) or after the fact by clicking any task name in the activity log. The "Tracking: ..." label updates live as you type.
-- **Optional Tags** — Add comma-separated tags (e.g., "Video Editing, General Chemistry") to any task via the tag input field below the task name. Tags display as pills in the log and summary, and are included in CSV export/import. Tags can also be edited inline by clicking a task in the log.
-- **Resume Tasks** — Each entry in the activity log has a "Resume" button. Clicking it restarts the timer for that task, and the timer display picks up from the previously accumulated time (e.g., if a task had 5 minutes logged, the display starts at `00:05:00`). When stopped, the new elapsed time is added to the existing entry rather than creating a new one. This lets you switch between tasks without cluttering the log.
-- **Delete Entries** — Each entry in the activity log has an **x** button to remove it individually, without needing to clear the entire log. The button is disabled for the currently-running entry.
-- **Task Activity Log** — Every completed timer session appears in a chronological list showing the task name, tags, and duration. A running total is displayed at the bottom.
-- **Activity Summary** — A "Summarize" button opens a modal that aggregates all sessions by task name. If you worked on the same task multiple times throughout the day, the durations are combined into a single entry. Tags from all sessions of the same task are merged. The current date is displayed at the top of the summary.
-- **CSV Export** — From the summary modal, click "Export CSV" to download a file. The CSV contains four columns: `Date` (YYYY-MM-DD), `Task`, `Duration` (HH:MM:SS), and `Tags` (semicolon-separated). The filename is automatically set to `time-tracker-YYYY-MM-DD.csv`. Fields containing commas or quotes are properly escaped per RFC 4180.
-- **CSV Import** — Click "Import" in the activity log header to load a previously exported CSV file. Imported entries appear in the activity log and are fully functional — they can be edited, resumed, summarized, and re-exported. The parser handles quoted fields and the exact format produced by the export function.
-- **Clear Log** — A "Clear" button resets all recorded activities after a confirmation prompt.
-- **Auto-Save** — All activity data and running timer state are automatically saved to the browser's `localStorage` after every change. If you accidentally close the tab, reopening `index.html` restores your full activity log and resumes any running timer (including elapsed time while the tab was closed). Clearing the log also clears the saved state.
+### Timing & activity log
+- **Stopwatch Timer** — Enter a task name and start a running timer. The display counts up in `HH:MM:SS` and updates every second. Stopping the timer logs the session automatically and shows a "Stopped at" timestamp (e.g., "Stopped at 3:12 PM, 4/8/2026") so you can tell how long ago you paused.
+- **Editable Task Names** — Task names can be changed while the timer is running, or after the fact by clicking any task name in the activity log. The "Tracking: ..." label updates live as you type.
+- **Optional Tags** — Comma-separated tags (e.g., "Video Editing, General Chemistry") can be attached to any task. Tags display as pills in the log and can be edited inline.
+- **Resume Tasks** — Each entry has a **Resume** button. Clicking it restarts the timer for that task with the previously accumulated time pre-loaded (e.g., a task with 5 minutes resumes at `00:05:00`). When stopped, the new time is added to the existing entry rather than creating a new one.
+- **Delete Entries** — Each entry has an **×** button to remove it individually. Disabled for the currently-running entry.
+- **Activity Log** — Every completed session appears in the log for the day being viewed, with a running total at the bottom.
+
+### Days, descriptions, and the month view
+- **Day View / Month View toggle** — A button in the header switches between viewing a single day's activities and a month-at-a-glance view.
+- **Save Day** — A **Save day** button opens a modal showing a per-task summary, a total, and a free-text "Description for the day" (e.g., *"General Chemistry editing; Q28 slide review"*). Saving marks the day with a ✓ in the month view.
+- **Month View** — Shows one row per day in the selected month with date, total hours, and the saved description. Click any row to jump into that day. Arrow buttons in the header step through months. Today is highlighted.
+- **Date Warning** — When viewing a past or future day, a banner reminds you that new tracked time will be logged to that date and offers a **Jump to today** shortcut.
+- **Clear Day** — Wipes all entries and the saved description for the day currently being viewed, after a confirmation prompt.
+
+### Import / export
+- **Detailed Log CSV Export** — From the month view, downloads a CSV with one row per `(date, task)`, columns: `Date`, `Task`, `Duration (hours)`, `Duration (HH:MM:SS)`, `Tags`, `Day Description`, plus a trailing **Month Total** footer row. Filename: `time-tracker-detailed-YYYY-MM.csv`.
+- **Per-Day CSV Export** — From inside the Save Day modal, exports just the current day in the same column format.
+- **CSV Import** — From the month view, loads a previously exported detailed-log CSV. The importer:
+  - **Auto-populates day descriptions** from the `Day Description` column for days that don't already have one (existing descriptions are never overwritten).
+  - **Skips duplicates** — entries are aggregated by `(date, task)` and compared at 2-decimal-hour precision against what's already tracked; matching rows are skipped and reported in a summary alert.
+  - **Ignores the Month Total footer row** so re-importing your own export won't add a phantom entry.
+- **Formatted Report (PDF)** — A **Report (PDF)** button on the month view renders a styled report into a hidden iframe and opens the browser's print dialog. Choose "Save as PDF" to get a file named `Time Report - <Month> <Year>.pdf`. The report contains:
+  - **Page 1** — Cover with the month total, plus a Monthly Summary table (Date, Hours, Description, with unique-tag pills per day).
+  - **Page 2+** — Detailed Log, one block per day: date heading, italic description, and a Task / Duration / Hours table with a day-total row. Tags are omitted from the detailed-log section to keep it readable.
+  - If any day has a description but **zero tracked time**, the user is asked to confirm before exporting (this usually means logs were lost or the description is a manual note).
+
+### Persistence
+- **Auto-Save** — All entries, per-day descriptions, the selected date, the current view, the month cursor, and any running timer state are persisted to `localStorage` after every change. Reopening `index.html` restores everything, including a timer that was running when the tab closed (elapsed time keeps accruing in the background).
 
 ## Tech Stack
 
-This is a **zero-dependency, single-file implementation**. Everything — HTML structure, CSS styling, and JavaScript logic — lives in `index.html`. There is no build step, no framework, and no external libraries.
+A **zero-dependency, single-file implementation**. HTML, CSS, and JavaScript all live in `index.html` — no build step, no framework, no external libraries.
 
-- **HTML** — Semantic structure with a timer section, an activity log section, and a summary modal overlay. A hidden file input handles CSV import.
-- **CSS** — Dark theme UI with a `#0f1117` background. Uses CSS flexbox for layout, `border-radius` for rounded cards, and `font-variant-numeric: tabular-nums` so timer digits don't shift as values change. All styles are embedded in a `<style>` block.
-- **JavaScript** — Vanilla JS using `setInterval` for the timer tick and `Date.now()` for elapsed-time calculation. Activity entries are stored in an in-memory array of `{ task, ms, tags }` objects and persisted to `localStorage`. CSV generation and parsing use the Blob API, FileReader API, and a custom RFC 4180-compliant parser. All user-supplied text is escaped via a `textContent`/`innerHTML` roundtrip to prevent XSS.
+- **HTML** — Semantic structure: timer section, activity log (day view), month grid (month view), Save Day modal, and a hidden printable iframe for the PDF report.
+- **CSS** — Dark theme (`#0f1117` background), CSS grid for the month rows, `font-variant-numeric: tabular-nums` for stable digit widths, and a separate print-only stylesheet inlined into the report iframe (Letter portrait, page counters, alternating row tint).
+- **JavaScript** — Vanilla JS. `setInterval` drives the display tick; `Date.now()` is the source of truth for elapsed time. State is held in two top-level structures (`entries`, `days`) and serialized to `localStorage`. CSV is generated/parsed in-place with a custom RFC 4180-aware parser. The PDF report is produced by writing styled HTML into a hidden `<iframe>` and calling `contentWindow.print()`.
 
 ## How to Use
 
 1. Open `index.html` in any modern web browser.
-2. Type a task name (e.g., "Chapter 3-4 video editing") into the input field.
-3. Optionally add tags in the field below (e.g., "Video Editing, General Chemistry").
-4. Click **Start** or press **Enter** to begin the stopwatch.
-5. Work on your task. The timer counts up in real time. You can edit the task name while the timer runs.
-6. Click **Stop** when you're done. The session is saved to the activity log and a "Stopped at" timestamp is shown.
-7. To switch tasks: stop the current timer, start a new one. To go back, click **Resume** on the previous entry — time is added to the same entry.
-8. Click any task name in the log to edit it or its tags after the fact.
-9. When you're finished, click **Summarize** to see an aggregated breakdown.
-10. Click **Export CSV** to download the summary as a `.csv` file.
-11. To load a previous session, click **Import** and select a CSV file exported by this app.
+2. Type a task name (e.g., "Chapter 3-4 video editing") and, optionally, tags.
+3. Click **Start** (or press **Enter**) to begin the stopwatch.
+4. Click **Stop** when you're done. The session is saved to the activity log.
+5. Use **Resume** on any entry to keep accumulating time on that task.
+6. Click any task name to edit it or its tags.
+7. When the day's done, click **Save day**, review the summary, write a description, and **Confirm**. (Or **Export day to CSV** straight from the modal.)
+8. Switch to **Month View** to browse days, jump into any of them, **Import** a past CSV, export the **Detailed Log** CSV, or generate the **Report (PDF)**.
 
 ## File Structure
 
@@ -50,48 +65,38 @@ TimeTracker/
 ## Implementation Details
 
 ### Timer Engine
-
-The timer uses `Date.now()` timestamps rather than incrementing a counter, so elapsed time remains accurate even if the browser throttles `setInterval` (e.g., when the tab is in the background). The interval fires every 1000ms to update the display.
+The timer uses `Date.now()` timestamps rather than incrementing a counter, so elapsed time stays accurate even if the browser throttles `setInterval` (e.g., when the tab is in the background). The interval fires every 1000 ms to update the display.
 
 ### Data Model
+Two top-level structures hold all state:
 
-All activity data is held in a plain JavaScript array (`entries`). Each entry is an object with three properties:
+- `entries: { id, date, task, ms, tags }[]` — every logged session. `date` is a local `YYYY-MM-DD` string so days don't shift with timezone changes.
+- `days: { [YYYY-MM-DD]: { description, savedAt } }` — per-day descriptions and the timestamp the day was saved.
 
-- `task` (string) — the name the user typed
-- `ms` (number) — elapsed time in milliseconds
-- `tags` (string[]) — optional array of tag strings
+The currently-running timer also tracks `resumingId` (the entry being resumed, if any), `timerOffset` (the pre-loaded ms when resuming), and `timerEntryDate` (the date the running session will log to, which can differ from the day currently being viewed).
 
-A `resumingIndex` variable tracks whether the current timer session is resuming an existing entry. When non-null, stopping the timer adds elapsed time to `entries[resumingIndex]` instead of pushing a new entry. A `timerOffset` variable holds the previously accumulated milliseconds so the timer display continues from where the entry left off.
+A migration pass on load rolls any pre-existing per-entry `description` field (legacy data) into the corresponding day's description so older saved state isn't lost.
 
-### Aggregation
-
-The summary groups entries by exact task name and sums their durations. This means "Bug fix" and "bug fix" are treated as separate tasks. Tags from all entries sharing a task name are merged into a single set. The grouped data is displayed in the summary modal and used as-is for CSV export.
-
-### CSV Format
-
-The exported CSV follows RFC 4180 conventions:
-
+### CSV Format (Detailed Log)
 ```
-Date,Task,Duration,Tags
-2026-04-01,Chapter 3-4 video editing,01:23:45,Video Editing; General Chemistry
-2026-04-01,Email and admin,00:32:10,
+Date,Task,Duration (hours),Duration (HH:MM:SS),Tags,Day Description
+2026-05-10,Social Post 5 editing,3.20,03:12:00,Video Editing; Social,General editing pass
+2026-05-10,Email and admin,0.53,00:32:10,,General editing pass
+,Month Total,3.73,03:44:10,,
 ```
 
-Fields containing commas, double quotes, or newlines are wrapped in double quotes, with internal quotes doubled (`""`) per the spec. Tags are joined with `; ` (semicolon-space) within the Tags column.
+Fields containing commas, quotes, or newlines are wrapped in double quotes with internal quotes doubled (RFC 4180). Tags are joined with `; ` within the Tags column. The trailing `Month Total` row has no date and is recognized and skipped by the importer.
 
-### CSV Import
+### Import Deduplication
+On import, both the existing `entries` array and the imported rows are aggregated by `(date, task_lowercase)`. For each key present in both, the totals are rounded to 2 decimal hours (the export's resolution) and compared; if they match, every imported row for that key is skipped. The user gets a summary alert with the import/skip counts.
 
-The import parser reads the same four-column format. It uses a character-by-character state machine to correctly handle quoted fields with embedded commas and escaped quotes. The `Duration` column (`HH:MM:SS`) is converted back to milliseconds. The `Date` column is read but not used — imported entries join the current session's activity log. The `Tags` column is split on `;` to reconstruct the tag array.
+This means re-importing your own detailed-log CSV is idempotent — no phantom duplicates, and existing entries are preserved as-is.
+
+### PDF Report
+The report is built as a complete HTML document (inline `<style>` with `@page` rules for Letter portrait, page counters, and `break-before: page` to put the detailed log on page 2). The document is written into a hidden, zero-size `<iframe>`, the iframe's title is set to `Time Report - <Month> <Year>` (browsers use this as the default print-dialog filename), and `contentWindow.print()` is called. CSS `break-inside: avoid` keeps each day's block from being split across pages where possible.
 
 ### Local Storage Persistence
-
-The app saves its full state to `localStorage` under the key `timetracker_state` after every mutation (start, stop, resume, edit, delete, clear, import). The saved state includes:
-
-- The `entries` array (all logged tasks, durations, and tags)
-- The running timer state, if active: start timestamp, task name, tag input value, `resumingIndex`, and `timerOffset`
-
-On page load, `loadState()` restores the entries and, if a timer was running, reconstructs the full timer UI. Because the original `Date.now()` start timestamp is persisted, elapsed time is calculated correctly even if the browser was closed for hours. If the stored data is missing or corrupt, the app starts fresh.
+The full app state is saved under the `timetracker_state` key after every mutation. The saved state includes `entries`, `days`, `selectedDate`, `view`, `monthCursor`, and any running timer (start timestamp, task name, tag input value, `resumingId`, `timerOffset`, `timerEntryDate`). On load, a migration function tolerantly upgrades legacy shapes; on corrupt data, the app starts fresh.
 
 ### Security
-
-User-provided task names are escaped before being inserted into the DOM. The `escapeHTML` helper creates a temporary `<div>`, sets its `textContent`, then reads back `innerHTML`, which neutralizes any embedded HTML or script tags. This applies to all rendering paths: the activity log, the summary modal, and tag pills.
+User-provided text (task names, tags, day descriptions) is escaped before being inserted into the DOM via a `textContent`/`innerHTML` roundtrip in `escapeHTML()`. This applies to every rendering path: the day log, the month grid, the Save Day modal, and the printed report.

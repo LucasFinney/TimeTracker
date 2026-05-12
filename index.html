@@ -1396,6 +1396,11 @@
         const task = (get(idx.task) || '').trim();
         if (!task) continue;
 
+        // Skip the Month Total footer row emitted by the detailed-log export:
+        // it has no Date and a "Month Total" label in the Task column.
+        const rawDate = (get(idx.date) || '').trim();
+        if (!rawDate && task.toLowerCase() === 'month total') continue;
+
         let ms = 0;
         if (idx.durationHMS >= 0) ms = parseTime(get(idx.durationHMS));
         if (!ms && idx.durationHours >= 0) {
@@ -1405,7 +1410,7 @@
         if (!ms && idx.durationLegacy >= 0) ms = parseTime(get(idx.durationLegacy));
         if (ms <= 0) continue;
 
-        const date = (get(idx.date) || '').trim() || getLocalDate();
+        const date = rawDate || getLocalDate();
         const tagsStr = get(idx.tags) || '';
         const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
 

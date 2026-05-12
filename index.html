@@ -1321,9 +1321,48 @@
           alert('No valid entries found in the CSV file.');
           return;
         }
-        entries.push(...imported);
+
+        // Aggregate existing entries by (date, task_lower) so we can detect
+        // duplicates against the collapsed-per-day form the exporter emits.
+        const existingByKey = new Map();
+        for (const e of entries) {
+          const key = `${e.date}${e.task.toLowerCase()}`;
+          existingByKey.set(key, (existingByKey.get(key) || 0) + e.ms);
+        }
+        // Aggregate the import the same way so multi-row imports for the same
+        // (date, task) compare against their summed duration.
+        const importedByKey = new Map();
+        for (const r of imported) {
+          const key = `${r.date}${r.task.toLowerCase()}`;
+          importedByKey.set(key, (importedByKey.get(key) || 0) + r.ms);
+        }
+
+        const skipKeys = new Set();
+        let skipped = 0;
+        for (const [key, importedMs] of importedByKey) {
+          const existingMs = existingByKey.get(key);
+          if (existingMs == null) continue;
+          // Compare at 2-decimal hour precision — that's the export's resolution.
+          const importedH = Math.round(importedMs / 36000) / 100;
+          const existingH = Math.round(existingMs / 36000) / 100;
+          if (importedH === existingH) {
+            skipKeys.add(key);
+            skipped++;
+          }
+        }
+
+        const toAdd = imported.filter(r =>
+          !skipKeys.has(`${r.date}${r.task.toLowerCase()}`)
+        );
+        entries.push(...toAdd);
         renderAll();
         saveState();
+
+        if (skipped > 0 && toAdd.length === 0) {
+          alert(`Skipped ${skipped} duplicate ${skipped === 1 ? 'entry' : 'entries'} — nothing new to import.`);
+        } else if (skipped > 0) {
+          alert(`Imported ${toAdd.length} ${toAdd.length === 1 ? 'entry' : 'entries'}; skipped ${skipped} duplicate ${skipped === 1 ? 'entry' : 'entries'}.`);
+        }
       };
       reader.readAsText(file);
       event.target.value = '';

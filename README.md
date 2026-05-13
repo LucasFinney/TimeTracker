@@ -2,6 +2,17 @@
 
 A single-file web application for logging time spent on freelance work. Track tasks with a stopwatch-style timer, annotate each day with a description, browse the month at a glance, and export a printable monthly report or a detailed CSV log.
 
+## Simple vs. Full mode
+
+The app ships with two interfaces in one codebase, selected at runtime:
+
+- **Simple mode (default)** — A streamlined logging UI for the employer-facing version of the tool. The "Save day" button and per-day description feature are hidden, the month view drops the description column, and the PDF report is a single section: total hours at the top of page 1, then the day-by-day task breakdown.
+- **Full mode** — The complete personal-use feature set. Save Day, per-day descriptions, the saved-day ✓ marker in the month view, and the original two-section PDF (Monthly Summary on page 1, Detailed Log starting on page 2).
+
+**Switching modes:** click the small dot in the bottom-right corner of the page. The dot is barely visible in simple mode; in full mode it turns blue and shows a small `full` label so the active mode is obvious. The choice is persisted in `localStorage` under `timetracker_mode` (separate from the entries/days state key), so switching never touches your data — descriptions you saved in full mode are still there if you flip back.
+
+**Feature parity is the goal.** Simple mode is a *subset* of full mode; every entry, day, tag, edit, import, and export must behave identically in both modes for the data they share. Mode gating only hides UI surface area or trims output — it never forks state, storage format, or core logic. Anything stored by either mode is readable and editable by the other.
+
 ## Features
 
 ### Timing & activity log
@@ -14,8 +25,8 @@ A single-file web application for logging time spent on freelance work. Track ta
 
 ### Days, descriptions, and the month view
 - **Day View / Month View toggle** — A button in the header switches between viewing a single day's activities and a month-at-a-glance view.
-- **Save Day** — A **Save day** button opens a modal showing a per-task summary, a total, and a free-text "Description for the day" (e.g., *"General Chemistry editing; Q28 slide review"*). Saving marks the day with a ✓ in the month view.
-- **Month View** — Shows one row per day in the selected month with date, total hours, and the saved description. Click any row to jump into that day. Arrow buttons in the header step through months. Today is highlighted.
+- **Save Day** *(full mode only)* — A **Save day** button opens a modal showing a per-task summary, a total, and a free-text "Description for the day" (e.g., *"General Chemistry editing; Q28 slide review"*). Saving marks the day with a ✓ in the month view.
+- **Month View** — Shows one row per day in the selected month with date, total hours, and (in full mode) the saved description. Click any row to jump into that day. Arrow buttons in the header step through months. Today is highlighted.
 - **Date Warning** — When viewing a past or future day, a banner reminds you that new tracked time will be logged to that date and offers a **Jump to today** shortcut.
 - **Clear Day** — Wipes all entries and the saved description for the day currently being viewed, after a confirmation prompt.
 
@@ -26,10 +37,10 @@ A single-file web application for logging time spent on freelance work. Track ta
   - **Auto-populates day descriptions** from the `Day Description` column for days that don't already have one (existing descriptions are never overwritten).
   - **Skips duplicates** — entries are aggregated by `(date, task)` and compared at 2-decimal-hour precision against what's already tracked; matching rows are skipped and reported in a summary alert.
   - **Ignores the Month Total footer row** so re-importing your own export won't add a phantom entry.
-- **Formatted Report (PDF)** — A **Report (PDF)** button on the month view renders a styled report into a hidden iframe and opens the browser's print dialog. Choose "Save as PDF" to get a file named `Time Report - <Month> <Year>.pdf`. The report contains:
-  - **Page 1** — Cover with the month total, plus a Monthly Summary table (Date, Hours, Description, with unique-tag pills per day).
-  - **Page 2+** — Detailed Log, one block per day: date heading, italic description, and a Task / Duration / Hours table with a day-total row. Tags are omitted from the detailed-log section to keep it readable.
-  - If any day has a description but **zero tracked time**, the user is asked to confirm before exporting (this usually means logs were lost or the description is a manual note).
+- **Formatted Report (PDF)** — A **Report (PDF)** button on the month view renders a styled report into a hidden iframe and opens the browser's print dialog. Choose "Save as PDF" to get a file named `Time Report - <Month> <Year>.pdf`. The layout depends on the current mode:
+  - **Simple mode** — Page 1 opens with the total-hours header, then goes straight into the day-by-day log: per-day heading and a Task / Duration / Hours table with a day-total row. No monthly summary table, no descriptions.
+  - **Full mode** — Page 1 is the cover with the month total plus a Monthly Summary table (Date, Hours, Description, with unique-tag pills per day). Page 2+ is the Detailed Log, one block per day: date heading, italic description, and the same task table.
+  - In full mode, if any day has a description but **zero tracked time**, the user is asked to confirm before exporting (this usually means logs were lost or the description is a manual note). Simple mode skips this check since descriptions are not in scope.
 
 ### Simple vs Full mode
 The app has two interface modes, toggled by a subtle dot in the bottom-right corner of the window. The choice persists in `localStorage` and never alters stored entry or day data — switching modes only changes what's shown and how the PDF report is laid out.
@@ -105,6 +116,15 @@ The report is built as a complete HTML document (inline `<style>` with `@page` r
 
 ### Local Storage Persistence
 The full app state is saved under the `timetracker_state` key after every mutation. The saved state includes `entries`, `days`, `selectedDate`, `view`, `monthCursor`, and any running timer (start timestamp, task name, tag input value, `resumingId`, `timerOffset`, `timerEntryDate`). On load, a migration function tolerantly upgrades legacy shapes; on corrupt data, the app starts fresh.
+
+The simple/full mode flag is stored separately under `timetracker_mode` (`'simple'` | `'full'`, defaulting to `'simple'`). It is intentionally kept out of `timetracker_state` so toggling modes never rewrites entry/day data, and so the data store has no concept of which UI rendered it.
+
+### Mode gating
+Gating is implemented in two places only:
+1. **CSS** — `body.mode-simple .full-only { display: none !important; }` hides any element tagged `full-only` (currently just the Save Day button), and `body.mode-simple .day-row` collapses the month-view grid to 3 columns (date / hours / arrow).
+2. **JS** — `if (mode === 'full')` branches in `renderMonthView` (description column) and `buildReportHTML` / `exportReport` (PDF layout, orphan-description warning).
+
+There is no separate "simple mode" code path for state, storage, timer, entry editing, tags, CSV import/export, or any other core behavior. Adding a new feature that touches the timer, entries, or month-level data should work in both modes by default; only add a mode check if the feature is explicitly UI-only and one mode should not see it.
 
 ### Security
 User-provided text (task names, tags, day descriptions) is escaped before being inserted into the DOM via a `textContent`/`innerHTML` roundtrip in `escapeHTML()`. This applies to every rendering path: the day log, the month grid, the Save Day modal, and the printed report.

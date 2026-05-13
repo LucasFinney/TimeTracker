@@ -31,6 +31,14 @@ A single-file web application for logging time spent on freelance work. Track ta
   - **Page 2+** — Detailed Log, one block per day: date heading, italic description, and a Task / Duration / Hours table with a day-total row. Tags are omitted from the detailed-log section to keep it readable.
   - If any day has a description but **zero tracked time**, the user is asked to confirm before exporting (this usually means logs were lost or the description is a manual note).
 
+### Simple vs Full mode
+The app has two interface modes, toggled by a subtle dot in the bottom-right corner of the window. The choice persists in `localStorage` and never alters stored entry or day data — switching modes only changes what's shown and how the PDF report is laid out.
+
+- **Simple mode** (default) — The streamlined interface. Hides the **Save day** button and per-day description field, and the PDF report is a slimmer "total hours + day-by-day breakdown" with no monthly summary table.
+- **Full mode** — The complete interface. All features are visible: Save Day modal with per-day descriptions, the full PDF report (cover + Monthly Summary on page 1, Detailed Log from page 2 onward), and every import/export option.
+
+**Feature parity is a hard requirement.** Every tracked entry, tag, duration edit, CSV import/export, and underlying piece of state must round-trip cleanly between modes — toggling the dot is a *display* choice, never a data choice. Any new feature should work in both modes unless it is inherently tied to a Full-only artifact (e.g., day descriptions). When in doubt, default to building it for both.
+
 ### Persistence
 - **Auto-Save** — All entries, per-day descriptions, the selected date, the current view, the month cursor, and any running timer state are persisted to `localStorage` after every change. Reopening `index.html` restores everything, including a timer that was running when the tab closed (elapsed time keeps accruing in the background).
 

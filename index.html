@@ -1689,7 +1689,47 @@
           </tr>`;
       }).join('');
 
-      // ----- Detailed log per day -----
+      // ----- Unified detail table (simple mode) -----
+      // Rows for the whole month in one table: Date | Task | Duration | Hours.
+      // Date cell rendered only on the first row of each day; a faint subtotal
+      // row is inserted when a day has more than one task.
+      const unifiedRows = [];
+      for (const date of dates) {
+        const dayEntries = entries.filter(e => e.date === date);
+        const dateLabel = escapeHTML(formatDateShort(date));
+        if (dayEntries.length === 0) {
+          unifiedRows.push(`
+            <tr class="day-start">
+              <td class="nowrap date-cell">${dateLabel}</td>
+              <td colspan="3" class="muted">No tracked activities.</td>
+            </tr>`);
+          continue;
+        }
+        const grouped = collapseToPerTaskPerDay(dayEntries);
+        let dayTotal = 0;
+        grouped.forEach((r, i) => {
+          dayTotal += r.ms;
+          unifiedRows.push(`
+            <tr class="${i === 0 ? 'day-start' : ''}">
+              <td class="nowrap date-cell">${i === 0 ? dateLabel : ''}</td>
+              <td>${escapeHTML(r.task)}</td>
+              <td class="num nowrap">${formatTime(r.ms)}</td>
+              <td class="num">${(r.ms / 3600000).toFixed(2)}</td>
+            </tr>`);
+        });
+        if (grouped.length > 1) {
+          unifiedRows.push(`
+            <tr class="day-subtotal">
+              <td></td>
+              <td class="subtotal-label">Day total</td>
+              <td class="num nowrap">${formatTime(dayTotal)}</td>
+              <td class="num">${(dayTotal / 3600000).toFixed(2)}</td>
+            </tr>`);
+        }
+      }
+      const unifiedHTML = unifiedRows.join('');
+
+      // ----- Detailed log per day (full mode) -----
       const showDesc = mode === 'full';
       const detailHTML = dates.map(date => {
         const dayEntries = entries.filter(e => e.date === date);
@@ -1801,7 +1841,7 @@
   }
   .tags { margin-top: 2pt; }
 
-  /* Detailed-log section */
+  /* Detailed-log section (full mode, per-day blocks) */
   .detail-section { break-before: page; }
   .day-block { break-inside: avoid; margin-bottom: 6pt; }
   .day-desc {
@@ -1814,6 +1854,40 @@
     font-weight: 600; background: #fff;
   }
   .detail-table .total-label { text-align: right; color: #555; }
+
+  /* Compact banner + unified table (simple mode) */
+  .report-banner {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1.5pt solid #1a1a1a;
+    padding-bottom: 6pt; margin-bottom: 12pt;
+    gap: 12pt; flex-wrap: wrap;
+  }
+  .report-banner .title { font-size: 16pt; font-weight: 600; }
+  .report-banner .meta { font-size: 9.5pt; color: #555; font-variant-numeric: tabular-nums; }
+  .report-banner .meta .total { color: #1a1a1a; font-weight: 600; }
+
+  .unified-table thead { display: table-header-group; }
+  .unified-table tbody tr { break-inside: avoid; }
+  .unified-table tbody tr:nth-child(even) { background: #fff; }
+  .unified-table tr.day-start td {
+    border-top: 0.5pt solid #c9ccd2;
+    padding-top: 6pt;
+  }
+  .unified-table tr.day-start:first-child td { border-top: none; padding-top: 6pt; }
+  .unified-table .date-cell { font-weight: 600; color: #1a1a1a; }
+  .unified-table tr.day-subtotal td {
+    background: #f7f8fa;
+    color: #555;
+    font-size: 9.5pt;
+    padding-top: 3pt; padding-bottom: 3pt;
+  }
+  .unified-table .subtotal-label { text-align: right; font-style: italic; }
+  .unified-table tfoot td {
+    border-top: 1pt solid #1a1a1a;
+    font-weight: 600; background: #fff;
+    padding-top: 8pt;
+  }
+  .unified-table tfoot .total-label { text-align: right; }
 
   @media screen {
     body { padding: 24pt; max-width: 8.5in; margin: 0 auto; }
@@ -1853,16 +1927,33 @@
   </section>
   ` : `
   <section>
-    <h1>${escapeHTML(title)}</h1>
-    <div class="cover-meta">Generated ${escapeHTML(generated)}</div>
-
-    <div class="cover-total">
-      <span class="label">Total Hours</span>
-      <span class="value">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+    <div class="report-banner">
+      <span class="title">${escapeHTML(title)}</span>
+      <span class="meta">
+        <span class="total">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+        &nbsp;·&nbsp; Generated ${escapeHTML(generated)}
+      </span>
     </div>
 
-    <h2>Daily Log</h2>
-    ${detailHTML}
+    <table class="unified-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Task</th>
+          <th class="num">Duration</th>
+          <th class="num">Hours</th>
+        </tr>
+      </thead>
+      <tbody>${unifiedHTML}</tbody>
+      <tfoot>
+        <tr>
+          <td></td>
+          <td class="total-label">Month total</td>
+          <td class="num nowrap">${formatTime(monthTotalMs)}</td>
+          <td class="num">${(monthTotalMs / 3600000).toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
   </section>
   `}
 </body>

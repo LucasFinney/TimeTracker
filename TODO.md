@@ -1,3 +1,11 @@
 # TODO LIST
 - Add "Detailed Log (PDF)" (show a simple tabular output with Date, Task, Duration) to simplified mode 
 - Add functionality to month view to select days to delete from list & remove "clear day" from day view
+- Add an "Export Options" panel to full mode, next to the Export PDF button, for controlling the monthly report's contents. Persist selections to localStorage (`reportOptions`), defaulting to the current full-mode output so behavior is unchanged unless touched. Options:
+  - Layout: Unified table (the new simple-mode default) vs. Per-day blocks (current full-mode style)
+  - Include cover page (title + total callout)
+  - Include monthly summary table
+  - Include detailed log
+  - Include day descriptions
+  - Include tags
+  - Force page break between summary and detail

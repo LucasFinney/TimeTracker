@@ -1689,7 +1689,46 @@
           </tr>`;
       }).join('');
 
-      // ----- Detailed log per day -----
+      // ----- Two-column detail rows (simple mode) -----
+      // Grid rows that flow inside a CSS multi-column container.
+      // Columns: Date | Task | Hours. Date is shown only on the first row of
+      // each day, and a faint subtotal row is inserted when a day has >1 task.
+      const unifiedRows = [];
+      for (const date of dates) {
+        const dayEntries = entries.filter(e => e.date === date);
+        const dateLabel = escapeHTML(formatDateShort(date));
+        if (dayEntries.length === 0) {
+          unifiedRows.push(`
+            <div class="row day-start">
+              <span class="date">${dateLabel}</span>
+              <span class="task muted">No tracked activities.</span>
+              <span class="num"></span>
+            </div>`);
+          continue;
+        }
+        const grouped = collapseToPerTaskPerDay(dayEntries);
+        let dayTotal = 0;
+        grouped.forEach((r, i) => {
+          dayTotal += r.ms;
+          unifiedRows.push(`
+            <div class="row ${i === 0 ? 'day-start' : ''}">
+              <span class="date">${i === 0 ? dateLabel : ''}</span>
+              <span class="task">${escapeHTML(r.task)}</span>
+              <span class="num">${(r.ms / 3600000).toFixed(2)}</span>
+            </div>`);
+        });
+        if (grouped.length > 1) {
+          unifiedRows.push(`
+            <div class="row day-subtotal">
+              <span class="date"></span>
+              <span class="task subtotal-label">Day total</span>
+              <span class="num">${(dayTotal / 3600000).toFixed(2)}</span>
+            </div>`);
+        }
+      }
+      const unifiedHTML = unifiedRows.join('');
+
+      // ----- Detailed log per day (full mode) -----
       const showDesc = mode === 'full';
       const detailHTML = dates.map(date => {
         const dayEntries = entries.filter(e => e.date === date);
@@ -1801,7 +1840,7 @@
   }
   .tags { margin-top: 2pt; }
 
-  /* Detailed-log section */
+  /* Detailed-log section (full mode, per-day blocks) */
   .detail-section { break-before: page; }
   .day-block { break-inside: avoid; margin-bottom: 6pt; }
   .day-desc {
@@ -1814,6 +1853,82 @@
     font-weight: 600; background: #fff;
   }
   .detail-table .total-label { text-align: right; color: #555; }
+
+  /* Compact banner + two-column detail (simple mode) */
+  .report-banner {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1.5pt solid #1a1a1a;
+    padding-bottom: 6pt; margin-bottom: 10pt;
+    gap: 12pt; flex-wrap: wrap;
+  }
+  .report-banner .title { font-size: 15pt; font-weight: 600; }
+  .report-banner .meta { font-size: 9pt; color: #555; font-variant-numeric: tabular-nums; }
+
+  .twocol-detail {
+    column-count: 2;
+    column-gap: 18pt;
+    column-rule: 0.5pt solid #d4d6db;
+    font-size: 8.5pt;
+    line-height: 1.35;
+  }
+  .twocol-detail .row {
+    display: grid;
+    grid-template-columns: minmax(58pt, auto) 1fr auto;
+    column-gap: 6pt;
+    break-inside: avoid;
+    padding: 1.5pt 0;
+  }
+  .twocol-detail .row.head {
+    column-span: all;
+    font-size: 7.5pt; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: #555;
+    border-bottom: 0.75pt solid #1a1a1a;
+    padding-bottom: 3pt; margin-bottom: 3pt;
+  }
+  .twocol-detail .row .num {
+    text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .twocol-detail .row .task { overflow-wrap: anywhere; }
+  .twocol-detail .row .date { font-weight: 600; color: #1a1a1a; white-space: nowrap; }
+  .twocol-detail .row.day-start {
+    border-top: 0.4pt solid #c9ccd2;
+    padding-top: 3pt;
+    margin-top: 1pt;
+  }
+  /* Suppress the day-start rule above the very first row (right after the
+     header), which sits at the top of column 1 and reads as a stray line. */
+  .twocol-detail .row.head + .row.day-start {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+  .twocol-detail .row.day-subtotal {
+    background: #f7f8fa;
+    color: #555;
+    font-size: 8pt;
+    padding: 1pt 2pt;
+  }
+  .twocol-detail .row.day-subtotal .subtotal-label {
+    text-align: right; font-style: italic;
+  }
+
+  .month-total-footer {
+    margin-top: 10pt;
+    padding-top: 6pt;
+    border-top: 1pt solid #1a1a1a;
+    display: flex; justify-content: flex-end; align-items: baseline;
+    gap: 10pt;
+    font-size: 10pt;
+    font-variant-numeric: tabular-nums;
+  }
+  .month-total-footer .label {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 8.5pt;
+    color: #555;
+  }
+  .month-total-footer .value { font-size: 13pt; font-weight: 600; }
 
   @media screen {
     body { padding: 24pt; max-width: 8.5in; margin: 0 auto; }
@@ -1853,16 +1968,24 @@
   </section>
   ` : `
   <section>
-    <h1>${escapeHTML(title)}</h1>
-    <div class="cover-meta">Generated ${escapeHTML(generated)}</div>
-
-    <div class="cover-total">
-      <span class="label">Total Hours</span>
-      <span class="value">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+    <div class="report-banner">
+      <span class="title">${escapeHTML(title)}</span>
+      <span class="meta">Generated ${escapeHTML(generated)}</span>
     </div>
 
-    <h2>Daily Log</h2>
-    ${detailHTML}
+    <div class="twocol-detail">
+      <div class="row head">
+        <span>Date</span>
+        <span>Task</span>
+        <span class="num">Hours</span>
+      </div>
+      ${unifiedHTML}
+    </div>
+
+    <div class="month-total-footer">
+      <span class="label">Month total</span>
+      <span class="value">${(monthTotalMs / 3600000).toFixed(2)} h</span>
+    </div>
   </section>
   `}
 </body>

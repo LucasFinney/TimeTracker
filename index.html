@@ -1896,6 +1896,13 @@
     padding-top: 3pt;
     margin-top: 1pt;
   }
+  /* Suppress the day-start rule above the very first row (right after the
+     header), which sits at the top of column 1 and reads as a stray line. */
+  .twocol-detail .row.head + .row.day-start {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
   .twocol-detail .row.day-subtotal {
     background: #f7f8fa;
     color: #555;

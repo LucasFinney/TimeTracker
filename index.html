@@ -699,9 +699,9 @@
           </div>
           <div class="panel-actions">
             <button class="btn btn-sm btn-secondary" onclick="openAddDayModal()">Add day</button>
-            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('csvFileInput').click()">Import</button>
+            <button class="btn btn-sm btn-secondary full-only" onclick="document.getElementById('csvFileInput').click()">Import</button>
             <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="importCSV(event)" />
-            <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Detailed Log</button>
+            <button class="btn btn-sm btn-export" onclick="exportDetailedLog()">Report (CSV)</button>
             <button class="btn btn-sm btn-export" onclick="exportReport()">Report (PDF)</button>
           </div>
         </div>

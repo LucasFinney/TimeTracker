@@ -1,4 +1,5 @@
 # TODO LIST
+- For days with only one logged activity, copy description of activity to day description (only visible in full mode)
 - Add functionality to month view to select days to delete from list & remove "clear day" from day view
 - Add an "Export Options" panel to full mode, next to the Export PDF button, for controlling the monthly report's contents. Persist selections to localStorage (`reportOptions`), defaulting to the current full-mode output so behavior is unchanged unless touched. Options:
   - Layout: Unified table (the new simple-mode default) vs. Per-day blocks (current full-mode style)

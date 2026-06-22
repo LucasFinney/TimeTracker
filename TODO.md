@@ -1,4 +1,6 @@
 # TODO LIST
+- URGENT: Add an "undo" button for use after deleting tasks or clearing days. 
+- URGENT: Add a confirmation dialogue for deleting tasks
 - Add a display indicating the timer is active to the month view
 - For days with only one logged activity, copy description of activity to day description (only visible in full mode)
 - Add functionality to month view to select days to delete from list & remove "clear day" from day view

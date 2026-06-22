@@ -1509,6 +1509,7 @@
       if (resumingId === id && timerStart) return;
       const idx = entries.findIndex(e => e.id === id);
       if (idx === -1) return;
+      if (!confirm(`Delete "${entries[idx].task}"?`)) return;
       captureUndo('Entry deleted.');
       entries.splice(idx, 1);
       renderLog();

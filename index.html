@@ -627,6 +627,44 @@
     }
     body.mode-full .mode-toggle { color: #5b8def; }
     body.mode-simple .mode-toggle-label { display: none; }
+
+    /* --- Undo toast --- */
+    .undo-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #1f2230;
+      border: 1px solid #3a3d4a;
+      border-radius: 10px;
+      padding: 12px 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      z-index: 200;
+      max-width: calc(100vw - 40px);
+    }
+
+    .undo-toast-msg {
+      font-size: 0.9rem;
+      color: #e0e0e0;
+    }
+
+    .undo-toast-btn {
+      background: none;
+      border: 1px solid #5b8def;
+      color: #5b8def;
+      padding: 5px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .undo-toast-btn:hover { background: #5b8def; color: #fff; }
   </style>
 </head>
 <body>
@@ -717,6 +755,12 @@
       <span class="dot"></span><span class="mode-toggle-label">full</span>
     </div>
 
+    <!-- Undo toast (shown after deleting an entry or clearing a day) -->
+    <div class="undo-toast hidden" id="undoToast">
+      <span class="undo-toast-msg" id="undoToastMsg"></span>
+      <button class="undo-toast-btn" onclick="performUndo()">Undo</button>
+    </div>
+
     <!-- =========== ADD ENTRY MODAL =========== -->
     <div id="addEntryModal" class="modal-backdrop hidden" onclick="closeAddEntryModalIfBackdrop(event)">
       <div class="modal">
@@ -791,6 +835,10 @@
     let view = 'day';            // 'day' | 'month'
     let monthCursor = null;      // "YYYY-MM"
     let mode = 'simple';         // 'simple' | 'full' — full restores description feature
+
+    let pendingUndo = null;      // { entries, days, label } snapshot for the undo toast
+    let undoTimer = null;        // auto-dismiss timeout handle
+    const UNDO_TIMEOUT_MS = 8000;
 
     // ============ MODE ============
     const MODE_STORAGE_KEY = 'timetracker_mode';
@@ -1461,6 +1509,7 @@
       if (resumingId === id && timerStart) return;
       const idx = entries.findIndex(e => e.id === id);
       if (idx === -1) return;
+      captureUndo('Entry deleted.');
       entries.splice(idx, 1);
       renderLog();
       saveState();
@@ -1470,10 +1519,46 @@
       const dayEntries = getDayEntries(selectedDate);
       if (dayEntries.length === 0 && !days[selectedDate]) return;
       if (!confirm(`Clear all activities and saved description for ${formatDateLabel(selectedDate)}?`)) return;
+      captureUndo(`Cleared ${formatDateLabel(selectedDate)}.`);
       entries = entries.filter(e => e.date !== selectedDate);
       delete days[selectedDate];
       renderLog();
       saveState();
+    }
+
+    // ============ UNDO ============
+    // Snapshot entries + days before a destructive action so it can be reverted
+    // from the undo toast. Only one action is held at a time; a new destructive
+    // action replaces the previous snapshot.
+    function captureUndo(label) {
+      pendingUndo = {
+        entries: JSON.parse(JSON.stringify(entries)),
+        days: JSON.parse(JSON.stringify(days)),
+        label
+      };
+      showUndoToast(label);
+    }
+
+    function showUndoToast(label) {
+      document.getElementById('undoToastMsg').textContent = label;
+      document.getElementById('undoToast').classList.remove('hidden');
+      if (undoTimer) clearTimeout(undoTimer);
+      undoTimer = setTimeout(dismissUndo, UNDO_TIMEOUT_MS);
+    }
+
+    function dismissUndo() {
+      pendingUndo = null;
+      if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+      document.getElementById('undoToast').classList.add('hidden');
+    }
+
+    function performUndo() {
+      if (!pendingUndo) { dismissUndo(); return; }
+      entries = pendingUndo.entries;
+      days = pendingUndo.days;
+      dismissUndo();
+      saveState();
+      renderAll();
     }
 
     // ============ ADD DAY MODAL ============
